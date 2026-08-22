@@ -151,6 +151,13 @@ export interface TelemetryResponse {
     model: string;
     displayName: string;
   } | null;
+  // Single source of truth for whether the "smart" gauge features (dynamic
+  // redline, shift recommendation, shift lights) should be shown at all -
+  // set server-side from the SHOW_RECOMMENDATION env var. When false, the
+  // dashboard falls back to raw telemetry only (redline = maxRpm, no
+  // recommendation/lights), since the model's predictions are still a work
+  // in progress.
+  showRecommendation: boolean;
   efficiency: {
     map: {
       [gear: number]: {
@@ -200,6 +207,7 @@ export interface ShiftRecommendation {
 export interface TelemetryData extends TelemetryFrame {
   rpmMax: number;
   redLine: number;
+  showRecommendation: boolean;
   carName: string | null;
   shiftRecommendation: ShiftRecommendation;
   // Raw 10-position light bar straight from the API, rendered literally by

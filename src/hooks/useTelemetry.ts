@@ -22,6 +22,7 @@ const initialData: TelemetryData = {
   lap: 0,
   redLine: 0,
   rpmMax: 8000,
+  showRecommendation: false,
   carName: null,
   shiftRecommendation: {
     upShift: false,
@@ -66,7 +67,7 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
             if (!payload || !payload.parsed) return;
 
             const { engine, performance, input, lap } = payload.parsed;
-            const { efficiency, carInfo } = payload;
+            const { efficiency, carInfo, showRecommendation } = payload;
 
             const currentGear = input?.gear ?? 0;
 
@@ -78,12 +79,23 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
             // redline is meant to be a stable "how close to the engine's
             // real max rpm" marker, a different concept from "when should I
             // shift" - so it's derived straight from maxRpm instead.
-            const range = engine.maxRpm - engine.idleRpm;
-            const dynamicOffset = Math.min(
-              engine.maxRpm * 0.1,
-              Math.max(1000, range * 0.04),
-            );
-            const redLine = engine.maxRpm - dynamicOffset;
+            //
+            // When showRecommendation is off, skip the margin entirely and
+            // use maxRpm as-is: Forza's own EngineMaxRpm field is documented
+            // by the community as literally "the redline rpm of the car", so
+            // this isn't a fallback approximation - it's the more literal
+            // reading of the same field the margin above is derived from.
+            let redLine: number;
+            if (showRecommendation) {
+              const range = engine.maxRpm - engine.idleRpm;
+              const dynamicOffset = Math.min(
+                engine.maxRpm * 0.1,
+                Math.max(1000, range * 0.04),
+              );
+              redLine = engine.maxRpm - dynamicOffset;
+            } else {
+              redLine = engine.maxRpm;
+            }
 
             const transformedData: TelemetryData = {
               gear: handleGear(currentGear),
@@ -99,6 +111,7 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
               lap: lap?.number ?? 1,
               rpmMax: Math.round((engine?.maxRpm ?? 0) / 1000) * 1000,
               redLine,
+              showRecommendation: showRecommendation ?? false,
               carName: carInfo?.displayName ?? null,
               shiftRecommendation: {
                 upShift:
@@ -191,6 +204,7 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
           torque: speedRatio * 700,
           rpmMax: maxRpm,
           redLine,
+          showRecommendation: true,
           carName: "1992 Nissan Skyline GT-R",
           shiftLights,
         }));

@@ -23,8 +23,8 @@ export const Dashboard: React.FC = () => {
         {/* Top: Car Nameplate */}
         <CarNameplate carName={data.carName} />
 
-        {/* Shift Lights */}
-        <ShiftLights lights={data.shiftLights} />
+        {/* Shift Lights - hidden while showRecommendation is off, see useTelemetry.ts */}
+        {data.showRecommendation && <ShiftLights lights={data.shiftLights} />}
 
         {/* Main Content */}
         <div className="flex justify-between items-center p-2 gap-8 bg-gradient-to-b from-gray-900 to-black">
@@ -85,18 +85,20 @@ export const Dashboard: React.FC = () => {
                 <ValueDisplay label="Lap" value={data.lap} align="right" />
               </div>
             </div>
-            <div
-              className={`p-2 text-right border-b border-gray-800 bg-olive-100 shadow-[inset_0_0_10px_rgba(0,0,0,1)] h-28 ${highlightShiftRecommendation(data.shiftRecommendation.recommendation)}`}
-            >
+            {data.showRecommendation && (
               <div
-                className={`text-7xl font-bold text-black font-digital tracking-tighter`}
+                className={`p-2 text-right border-b border-gray-800 bg-olive-100 shadow-[inset_0_0_10px_rgba(0,0,0,1)] h-28 ${highlightShiftRecommendation(data.shiftRecommendation.recommendation)}`}
               >
-                {data.shiftRecommendation.recommendation}
+                <div
+                  className={`text-7xl font-bold text-black font-digital tracking-tighter`}
+                >
+                  {data.shiftRecommendation.recommendation}
+                </div>
+                <span className="text-xl font-bold text-black uppercase">
+                  SHIFT REC
+                </span>
               </div>
-              <span className="text-xl font-bold text-black uppercase">
-                SHIFT REC
-              </span>
-            </div>
+            )}
           </div>
         </div>
       </div>
