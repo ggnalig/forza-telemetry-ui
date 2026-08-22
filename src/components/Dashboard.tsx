@@ -1,5 +1,6 @@
 import React from "react";
 import { useTelemetry } from "../hooks/useTelemetry";
+import { CarNameplate } from "./CarNameplate";
 import { ShiftLights } from "./ShiftLights";
 import { Gauge } from "./Gauge";
 import { ValueDisplay } from "./ValueDisplay";
@@ -19,7 +20,10 @@ export const Dashboard: React.FC = () => {
           className={`absolute top-2 right-4 w-3 h-3 rounded-full ${connected ? "bg-green-500 shadow-[0_0_10px_#22c55e]" : "bg-red-500 animate-pulse"}`}
         />
 
-        {/* Top: Shift Lights */}
+        {/* Top: Car Nameplate */}
+        <CarNameplate carName={data.carName} />
+
+        {/* Shift Lights */}
         <ShiftLights lights={data.shiftLights} />
 
         {/* Main Content */}

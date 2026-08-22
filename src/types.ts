@@ -139,6 +139,16 @@ export interface TelemetryResponse {
     };
   };
   timestamp: number;
+  // Resolved from car.ordinal against the merged Forza Motorsport + Forza
+  // Horizon 6 car database (both games share the same UDP telemetry format
+  // and car-ordinal ID space) - null when the ordinal isn't in either source.
+  carInfo: {
+    carId: number;
+    year: number;
+    make: string;
+    model: string;
+    displayName: string;
+  } | null;
   efficiency: {
     map: {
       [gear: number]: {
@@ -188,6 +198,7 @@ export interface ShiftRecommendation {
 export interface TelemetryData extends TelemetryFrame {
   rpmMax: number;
   redLine: number;
+  carName: string | null;
   shiftRecommendation: ShiftRecommendation;
   // Raw 10-position light bar straight from the API, rendered literally by
   // ShiftLights.tsx - see that component for why this isn't reduced to an

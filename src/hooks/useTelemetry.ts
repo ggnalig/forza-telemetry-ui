@@ -22,6 +22,7 @@ const initialData: TelemetryData = {
   lap: 0,
   redLine: 0,
   rpmMax: 8000,
+  carName: null,
   shiftRecommendation: {
     upShift: false,
     downShift: false,
@@ -65,7 +66,7 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
             if (!payload || !payload.parsed) return;
 
             const { engine, performance, input, lap } = payload.parsed;
-            const { efficiency } = payload;
+            const { efficiency, carInfo } = payload;
 
             const currentGear = input?.gear ?? 0;
 
@@ -98,6 +99,7 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
               lap: lap?.number ?? 1,
               rpmMax: Math.round((engine?.maxRpm ?? 0) / 1000) * 1000,
               redLine,
+              carName: carInfo?.displayName ?? null,
               shiftRecommendation: {
                 upShift:
                   efficiency?.recommendations?.upshiftRecommended ?? false,
@@ -189,6 +191,7 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
           torque: speedRatio * 700,
           rpmMax: maxRpm,
           redLine,
+          carName: "1992 Nissan Skyline GT-R",
           shiftLights,
         }));
       }, 16); // ~60Hz
