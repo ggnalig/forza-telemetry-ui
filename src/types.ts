@@ -73,7 +73,8 @@ export interface TelemetryResponse {
         rearLeft: number;
         rearRight: number;
       };
-      inPuddleDepth: {
+      // Boolean flag (1/0) in FH6's Data Out format, not a depth value.
+      inPuddle: {
         frontLeft: number;
         frontRight: number;
         rearLeft: number;
@@ -91,18 +92,17 @@ export interface TelemetryResponse {
         rearLeft: number;
         rearRight: number;
       };
-      tireWear: {
-        frontLeft: number;
-        frontRight: number;
-        rearLeft: number;
-        rearRight: number;
-      };
     };
     car: {
       ordinal: number;
       class: number;
       performanceIndex: number;
       drivetrain: number;
+      group: number;
+    };
+    collision: {
+      smashableVelDiff: number;
+      smashableMass: number;
     };
     position: {
       x: number;
@@ -132,7 +132,7 @@ export interface TelemetryResponse {
       gear: number;
       steer: number;
     };
-    track: { ordinal: number; distanceTraveled: number };
+    distanceTraveled: number;
     ai: {
       normalizedDrivingLine: number;
       normalizedAIBrakeDifference: number;
@@ -140,8 +140,10 @@ export interface TelemetryResponse {
   };
   timestamp: number;
   // Resolved from car.ordinal against the merged Forza Motorsport + Forza
-  // Horizon 6 car database (both games share the same UDP telemetry format
-  // and car-ordinal ID space) - null when the ordinal isn't in either source.
+  // Horizon 6 car database (the two games share the same car-ordinal ID
+  // space even though their UDP wire formats differ - the backend parses
+  // FH6's own 324-byte Data Out format) - null when the ordinal isn't in
+  // either source.
   carInfo: {
     carId: number;
     year: number;
