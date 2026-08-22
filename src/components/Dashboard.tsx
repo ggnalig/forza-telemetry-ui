@@ -20,11 +20,7 @@ export const Dashboard: React.FC = () => {
         />
 
         {/* Top: Shift Lights */}
-        <ShiftLights
-          activeCount={data.shiftLights.active}
-          blink={data.shiftLights.blink}
-          color={data.shiftLights.color}
-        />
+        <ShiftLights lights={data.shiftLights} />
 
         {/* Main Content */}
         <div className="flex justify-between items-center p-2 gap-8 bg-gradient-to-b from-gray-900 to-black">

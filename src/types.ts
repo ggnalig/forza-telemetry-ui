@@ -141,18 +141,24 @@ export interface TelemetryResponse {
   timestamp: number;
   efficiency: {
     map: {
-      "1": {
+      [gear: number]: {
         rpmMin: number;
         rpmMax: number;
         rpmAvg: number;
         rpmOptimal: number;
-        shiftWindow: [number, number];
+        // Descriptive p10-p90 observed spread, NOT a decision boundary -
+        // the real shift point is `finalShiftRPM` below. Named to match the
+        // API (renamed from `shiftWindow` in the 2026-08-22 audit).
+        observedRpmRange: [number, number];
       };
     };
     recommendations: {
       upshiftRecommended: boolean;
       downshiftRecommended: boolean;
     };
+    // 10-position F1-style light bar, rendered literally position-by-position
+    // (see ShiftLights.tsx) - not a rolling history, don't aggregate this
+    // into a single "active count" / "blinking" flag.
     lights: string[];
     currentRpm: number;
     finalShiftRPM: number;
@@ -182,11 +188,9 @@ export interface ShiftRecommendation {
 export interface TelemetryData extends TelemetryFrame {
   rpmMax: number;
   redLine: number;
-  shiftWindow: { min: number; max: number };
   shiftRecommendation: ShiftRecommendation;
-  shiftLights: {
-    active: number; // number of lights to show
-    blink: boolean;
-    color: string;
-  };
+  // Raw 10-position light bar straight from the API, rendered literally by
+  // ShiftLights.tsx - see that component for why this isn't reduced to an
+  // active-count/color/blink summary.
+  shiftLights: string[];
 }

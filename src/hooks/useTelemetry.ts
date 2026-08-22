@@ -2,10 +2,14 @@ import { useState, useEffect } from "react";
 import type { TelemetryData, TelemetryResponse } from "../types";
 import { handleGear } from "../utils/helper";
 
-const MOCK_DATA = true; // Set to true to use mock data
+// Set to true to preview the dashboard without a live Forza session/API
+// running (e.g. `npm run dev` with no forza-telemetry backend up).
+const MOCK_DATA = false;
+
+const OFF_LIGHTS = new Array(10).fill("⚫");
 
 const initialData: TelemetryData = {
-  gear: handleGear(11),
+  gear: handleGear(0),
   rpm: 0,
   speed: 0,
   torque: 0,
@@ -18,13 +22,12 @@ const initialData: TelemetryData = {
   lap: 0,
   redLine: 0,
   rpmMax: 8000,
-  shiftWindow: { min: 6500, max: 7500 },
   shiftRecommendation: {
     upShift: false,
     downShift: false,
     recommendation: "WAIT",
   },
-  shiftLights: { active: 0, blink: false, color: "green" },
+  shiftLights: OFF_LIGHTS,
 };
 
 export const useTelemetry = (url: string = "ws://localhost:3001") => {
@@ -34,6 +37,7 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
   useEffect(() => {
     let ws: WebSocket | null = null;
     let mockInterval: number | null = null;
+    let connectTimer: number | null = null;
 
     if (!MOCK_DATA) {
       const connectWebSocket = () => {
@@ -41,12 +45,12 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
 
         ws.onopen = () => {
           setConnected(true);
-          console.log("WebSocket Connected");
+          console.log(`WebSocket connected to ${url}`);
         };
 
         ws.onclose = () => {
           setConnected(false);
-          console.log("WebSocket Disconnected. Reconnecting in 2s...");
+          console.log("WebSocket disconnected, reconnecting in 2s...");
           setTimeout(connectWebSocket, 2000);
         };
 
@@ -58,32 +62,24 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
         ws.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data) as TelemetryResponse;
-            console.log(payload.parsed, "<-- parsed");
             if (!payload || !payload.parsed) return;
 
             const { engine, performance, input, lap } = payload.parsed;
             const { efficiency } = payload;
 
-            // Safe fallback extractions
-            const currentGear = input?.gear ?? 1;
-            const mapEntry = efficiency?.map?.[currentGear];
+            const currentGear = input?.gear ?? 0;
 
-            // Parse shift lights logic
-            const lightsArray = efficiency?.lights || [];
-
-            const activeLightsCount = lightsArray.filter((l: string) =>
-              ["🟢", "🟡", "🟠", "🔴"].includes(l),
-            ).length;
-
-            const isBlinking = lightsArray.includes("⚫");
-
-            let color = "green";
-            if (lightsArray.includes("🔴")) color = "red";
-            else if (lightsArray.includes("🟠") || lightsArray.includes("🟡"))
-              color = "yellow";
-
+            // Deliberately NOT using efficiency.finalShiftRPM here: that's
+            // the model's current *recommended shift point*, which is a
+            // volatile, still-converging estimate early in a session (it can
+            // sit far below the engine's actual redline while the model
+            // hasn't yet observed the power curve's peak). The gauge's
+            // redline is meant to be a stable "how close to the engine's
+            // real max rpm" marker, a different concept from "when should I
+            // shift" - so it's derived straight from maxRpm instead.
             const range = engine.maxRpm - engine.idleRpm;
             const dynamicOffset = Math.min(1000, Math.max(1000, range * 0.04));
+            const redLine = engine.maxRpm - dynamicOffset;
 
             const transformedData: TelemetryData = {
               gear: handleGear(currentGear),
@@ -98,11 +94,7 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
               position: lap?.position ?? 1,
               lap: lap?.number ?? 1,
               rpmMax: Math.round((engine?.maxRpm ?? 0) / 1000) * 1000,
-              shiftWindow: {
-                min: mapEntry?.shiftWindow?.[0] ?? 6500,
-                max: mapEntry?.shiftWindow?.[1] ?? 7500,
-              },
-              redLine: engine.maxRpm - dynamicOffset,
+              redLine,
               shiftRecommendation: {
                 upShift:
                   efficiency?.recommendations?.upshiftRecommended ?? false,
@@ -114,15 +106,12 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
                     ? "DOWN"
                     : "WAIT",
               },
-              shiftLights: {
-                active: activeLightsCount,
-                blink: isBlinking,
-                color,
-              },
+              // Passed straight through - see ShiftLights.tsx for why this
+              // isn't reduced to an active-count/color/blink summary here.
+              shiftLights: efficiency?.lights ?? OFF_LIGHTS,
             };
 
             setData(transformedData);
-            console.log(transformedData, "<-- transformedData");
           } catch (e) {
             console.error("Failed to parse telemetry data", e);
           }
@@ -131,10 +120,15 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
 
       connectWebSocket();
     } else {
-      setConnected(true);
+      // Deferred so the initial setState doesn't happen synchronously in the
+      // effect body (react-hooks/set-state-in-effect).
+      connectTimer = window.setTimeout(() => setConnected(true), 0);
+
       let t = 0;
+      let blinkTick = 0;
       mockInterval = window.setInterval(() => {
         t += 0.05;
+        blinkTick += 1;
         const maxRpm = 12000; // Adjusted to 12000, scalable up to 6 digits
         const idleRpm = 800;
 
@@ -146,16 +140,38 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
         const speed = Math.max(0, speedRatio * 350); // Scale speed up to 350 km/h
         const gear = Math.max(1, Math.min(6, Math.ceil(speedRatio * 6))); // 1 to 6 gears
 
-        const lightStartRpm = maxRpm * 0.75;
-        const activeLights = Math.floor(
-          Math.max(0, (rpm - lightStartRpm) / ((maxRpm - lightStartRpm) / 13)),
-        );
-
         const range = maxRpm - idleRpm;
         const dynamicOffset = Math.min(
           maxRpm * 0.1,
           Math.max(200, range * 0.05),
         );
+        const redLine = maxRpm - dynamicOffset;
+
+        // Mirrors the API's shift-light shape (fill bar -> uniform blink)
+        // closely enough for a local preview, using redLine as the mock
+        // "optimal shift point" since there's no learned finalShiftRPM here.
+        const optimalStart = redLine;
+        const optimalEnd = optimalStart + maxRpm * 0.04;
+        const approachStart = optimalStart - maxRpm * 0.15;
+        const blinkOn = blinkTick % 6 < 3;
+
+        let shiftLights: string[];
+        if (rpm > optimalEnd) {
+          shiftLights = new Array(10).fill(blinkOn ? "🔴" : "⚫");
+        } else if (rpm >= optimalStart) {
+          shiftLights = new Array(10).fill(blinkOn ? "🟠" : "⚫");
+        } else if (rpm < approachStart) {
+          shiftLights = OFF_LIGHTS;
+        } else {
+          const progress = Math.max(
+            0,
+            Math.min(1, (rpm - approachStart) / (optimalStart - approachStart)),
+          );
+          const litCount = Math.round(progress * 10);
+          shiftLights = Array.from({ length: 10 }, (_, i) =>
+            i >= litCount ? "⚫" : i < 5 ? "🟢" : "🟡",
+          );
+        }
 
         setData((prev) => ({
           ...prev,
@@ -169,27 +185,19 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
           fuel: Number((50 + Math.cos((t * Math.PI) / 100) * 50).toFixed(1)),
           torque: speedRatio * 700,
           rpmMax: maxRpm,
-          redLine: maxRpm - dynamicOffset,
-          shiftLights: {
-            active: activeLights,
-            blink: rpm > maxRpm * 0.95,
-            color:
-              rpm > maxRpm * 0.95
-                ? "red"
-                : rpm > maxRpm * 0.85
-                  ? "yellow"
-                  : "green",
-          },
+          redLine,
+          shiftLights,
         }));
       }, 16); // ~60Hz
     }
-    console.log(data, "<-- data");
+
     return () => {
       if (ws) {
         ws.onclose = null; // Prevent reconnect loop on unmount
         ws.close();
       }
       if (mockInterval) window.clearInterval(mockInterval);
+      if (connectTimer) window.clearTimeout(connectTimer);
     };
   }, [url]);
 

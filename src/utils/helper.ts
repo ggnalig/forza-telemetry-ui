@@ -23,8 +23,11 @@ export const handleShiftRecommendation = (recommendation: string) => {
   return "WAIT";
 };
 
+// Forza's gear byte: 0 = neutral, 1-10 = forward gears (per the API's own
+// MAX_SUPPORTED_GEAR). Reverse isn't confirmed to have a distinct encoding
+// in this telemetry format, so any value outside that range falls back to
+// "N" defensively rather than guessing.
 export const handleGear = (gear: number) => {
-  if (gear === 0) return "R";
-  if (gear === 11) return "N";
-  return gear.toString();
+  if (gear >= 1 && gear <= 10) return gear.toString();
+  return "N";
 };

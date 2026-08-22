@@ -99,8 +99,8 @@ export const Gauge: React.FC<GaugeProps> = ({
       // Left side ticks -> anchor start (left aligned)
       // Right side ticks -> anchor end (right aligned)
       // Top/Bottom ticks -> anchor middle
-      let anchor = "middle";
-      let baseline = "middle";
+      const anchor = "middle";
+      const baseline = "middle";
 
       arr.push({ value: rpmAtTick / 1000, x, y, anchor, baseline });
     }
