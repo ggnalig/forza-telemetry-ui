@@ -78,7 +78,10 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
             // real max rpm" marker, a different concept from "when should I
             // shift" - so it's derived straight from maxRpm instead.
             const range = engine.maxRpm - engine.idleRpm;
-            const dynamicOffset = Math.min(1000, Math.max(1000, range * 0.04));
+            const dynamicOffset = Math.min(
+              engine.maxRpm * 0.1,
+              Math.max(1000, range * 0.04),
+            );
             const redLine = engine.maxRpm - dynamicOffset;
 
             const transformedData: TelemetryData = {

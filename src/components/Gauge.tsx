@@ -95,14 +95,7 @@ export const Gauge: React.FC<GaugeProps> = ({
       // Calculate exact coordinates along the radius
       const { x, y } = polarToCartesian(cx, cy, 210 - strokeWidth + 80, angle);
 
-      // Determine text anchor based on angle to prevent overlap without shifting coordinates
-      // Left side ticks -> anchor start (left aligned)
-      // Right side ticks -> anchor end (right aligned)
-      // Top/Bottom ticks -> anchor middle
-      const anchor = "middle";
-      const baseline = "middle";
-
-      arr.push({ value: rpmAtTick / 1000, x, y, anchor, baseline });
+      arr.push({ value: rpmAtTick / 1000, x, y });
     }
     return arr;
   }, [rpmMax, logicalStartAngle, totalAngle]);
