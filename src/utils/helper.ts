@@ -10,14 +10,14 @@ export const highlightPercentageValue = (value: number) => {
   }
 };
 
-// Forza's raw gear byte is 0 for both Neutral AND Reverse - it never
-// distinguishes them on its own. The API's parser (src/udp/parser.ts) folds
-// in the sign of the raw speed field (negative while reversing) to tell
-// them apart, and reports Reverse as -1 (a sentinel the game itself never
-// sends, since the raw byte is unsigned) - see that file's `isReversing`
-// comment for why. 1-10 stay actual forward gears.
+// Confirmed empirically against real FH6 telemetry (an earlier hypothesis -
+// that Reverse was signaled by a negative raw speed value - was tried and
+// shown wrong live in-game): the raw gear byte is 0 = Reverse, 1-10 =
+// forward gears, 11 = Neutral. Passed straight through from the API
+// unchanged (see src/udp/parser.ts), so this is the only place that
+// interprets the numbers.
 export const handleGear = (gear: number) => {
-  if (gear === -1) return "R";
+  if (gear === 11) return "N";
   if (gear >= 1 && gear <= 10) return gear.toString();
-  return "N";
+  return "R";
 };
