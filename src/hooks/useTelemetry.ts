@@ -109,7 +109,17 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
               fuel: performance?.fuel ?? 0,
               position: lap?.position ?? 1,
               lap: lap?.number ?? 1,
-              rpmMax: Math.round((engine?.maxRpm ?? 0) / 1000) * 1000,
+              // Deliberately NOT rounded: Gauge.tsx normalizes both the
+              // needle and the redline arc as a fraction of this value
+              // (rpm/rpmMax, redline/rpmMax). Rounding it here while
+              // `redLine` stayed unrounded meant the two were different
+              // representations of "max rpm" mixed into the same ratio -
+              // e.g. maxRpm=7200 rounded down to rpmMax=7000 made
+              // redline/rpmMax = 7200/7000 = 1.03, pushing the redline arc
+              // PAST the visual end of the gauge. Tick labels still come out
+              // as clean round numbers regardless (Gauge.tsx computes those
+              // separately via `Math.floor(rpmMax / tickStep)`).
+              rpmMax: engine?.maxRpm ?? 0,
               redLine,
               showRecommendation: showRecommendation ?? false,
               carName: carInfo?.displayName ?? null,

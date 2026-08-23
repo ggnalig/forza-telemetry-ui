@@ -181,6 +181,10 @@ export interface TelemetryResponse {
     lights: string[];
     currentRpm: number;
     finalShiftRPM: number;
+    // Highest rpm ever observed at WOT for this car build - a diagnostic
+    // for cross-checking engine.maxRpm against the actual empirically-
+    // observed rev limiter (not yet surfaced in the UI).
+    observedRpmCeiling?: number;
   };
 }
 
