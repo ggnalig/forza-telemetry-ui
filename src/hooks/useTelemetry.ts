@@ -80,22 +80,13 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
             // real max rpm" marker, a different concept from "when should I
             // shift" - so it's derived straight from maxRpm instead.
             //
-            // When showRecommendation is off, skip the margin entirely and
-            // use maxRpm as-is: Forza's own EngineMaxRpm field is documented
-            // by the community as literally "the redline rpm of the car", so
-            // this isn't a fallback approximation - it's the more literal
-            // reading of the same field the margin above is derived from.
-            let redLine: number;
-            if (showRecommendation) {
-              const range = engine.maxRpm - engine.idleRpm;
-              const dynamicOffset = Math.min(
-                engine.maxRpm * 0.1,
-                Math.max(1000, range * 0.04),
-              );
-              redLine = engine.maxRpm - dynamicOffset;
-            } else {
-              redLine = engine.maxRpm;
-            }
+            // Deliberately NOT gated by showRecommendation either: that flag
+            // only controls the still-learning predictive UI (shift
+            // recommendation, shift lights), not this gauge. Forza's own
+            // EngineMaxRpm field is documented by the community as literally
+            // "the redline rpm of the car", so redLine always reads it as-is
+            // regardless of the flag's state.
+            const redLine = engine.maxRpm;
 
             const transformedData: TelemetryData = {
               gear: handleGear(currentGear),
