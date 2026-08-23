@@ -82,22 +82,13 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
             // real max rpm" marker, a different concept from "when should I
             // shift" - so it's derived straight from maxRpm instead.
             //
-            // When showRecommendation is off, skip the margin entirely and
-            // use maxRpm as-is: Forza's own EngineMaxRpm field is documented
-            // by the community as literally "the redline rpm of the car", so
-            // this isn't a fallback approximation - it's the more literal
-            // reading of the same field the margin above is derived from.
-            let redLine: number;
-            if (showRecommendation) {
-              const range = engine.maxRpm - engine.idleRpm;
-              const dynamicOffset = Math.min(
-                engine.maxRpm * 0.1,
-                Math.max(1000, range * 0.04),
-              );
-              redLine = engine.maxRpm - dynamicOffset;
-            } else {
-              redLine = engine.maxRpm;
-            }
+            // Deliberately NOT gated by showRecommendation either: that flag
+            // only controls the still-learning predictive UI (shift
+            // recommendation, shift lights), not this gauge. Forza's own
+            // EngineMaxRpm field is documented by the community as literally
+            // "the redline rpm of the car", so redLine always reads it as-is
+            // regardless of the flag's state.
+            const redLine = engine.maxRpm;
 
             const transformedData: TelemetryData = {
               gear: handleGear(currentGear),
@@ -111,7 +102,17 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
               fuel: performance?.fuel ?? 0,
               position: lap?.position ?? 1,
               lap: lap?.number ?? 1,
-              rpmMax: Math.round((engine?.maxRpm ?? 0) / 1000) * 1000,
+              // Deliberately NOT rounded: Gauge.tsx normalizes both the
+              // needle and the redline arc as a fraction of this value
+              // (rpm/rpmMax, redline/rpmMax). Rounding it here while
+              // `redLine` stayed unrounded meant the two were different
+              // representations of "max rpm" mixed into the same ratio -
+              // e.g. maxRpm=7200 rounded down to rpmMax=7000 made
+              // redline/rpmMax = 7200/7000 = 1.03, pushing the redline arc
+              // PAST the visual end of the gauge. Tick labels still come out
+              // as clean round numbers regardless (Gauge.tsx computes those
+              // separately via `Math.floor(rpmMax / tickStep)`).
+              rpmMax: engine?.maxRpm ?? 0,
               redLine,
               showRecommendation: showRecommendation ?? false,
               carName: carInfo?.displayName ?? null,
