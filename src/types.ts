@@ -7,6 +7,36 @@ export interface GearboxTune {
   updatedAt: string;
 }
 
+export type SessionStatus = "recording" | "completed" | "aborted";
+
+export interface SessionSummary {
+  id: string;
+  buildKey: string;
+  carOrdinal: number;
+  maxRpm: number;
+  idleRpm: number;
+  startedAt: number;
+  endedAt: number | null;
+  frameCount: number;
+  status: SessionStatus;
+}
+
+export interface SessionFrame {
+  frameIndex: number;
+  timestampMs: number;
+  lapNumber: number | null;
+  lapCurrent: number | null;
+  lapLast: number | null;
+  lapBest: number | null;
+  raceTime: number | null;
+  position: number | null;
+  rpm: number;
+  speed: number;
+  gear: number;
+  throttle: number;
+  brake: number;
+}
+
 export interface TelemetryResponse {
   parsed: {
     isRaceOn: number;
