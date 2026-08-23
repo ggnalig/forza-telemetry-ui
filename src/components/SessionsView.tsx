@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
+import type uPlot from "uplot";
 import type { SessionSummary, SessionFrame } from "../types";
 import { sessionApi } from "../services/sessionApi";
-import { handleGear } from "../utils/helper";
-import { Gauge } from "./Gauge";
-import { ValueDisplay } from "./ValueDisplay";
 import { LineChart } from "./LineChart";
 
 const STATUS_LABEL: Record<SessionSummary["status"], string> = {
@@ -18,6 +16,21 @@ const STATUS_COLOR: Record<SessionSummary["status"], string> = {
   aborted: "text-gray-500",
 };
 
+const NO_TUNE_LABEL = "Tanpa Tune";
+
+type Metric = "rpm" | "speed" | "throttle" | "brake";
+
+const METRIC_LABEL: Record<Metric, string> = {
+  rpm: "RPM",
+  speed: "Speed (km/h)",
+  throttle: "Throttle (%)",
+  brake: "Brake (%)",
+};
+
+// Cycled per selected session in the overlay chart - not tied to any
+// particular metric's meaning (unlike the old fixed RPM=green/Speed=blue).
+const OVERLAY_COLORS = ["#22c55e", "#3b82f6", "#ef4444", "#eab308", "#a855f7", "#06b6d4", "#f97316", "#ec4899"];
+
 function formatDuration(session: SessionSummary): string {
   const end = session.endedAt ?? Date.now();
   const seconds = Math.max(0, Math.round((end - session.startedAt) / 1000));
@@ -26,8 +39,30 @@ function formatDuration(session: SessionSummary): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function carLabel(session: SessionSummary): string {
+  return session.carInfo?.displayName ?? `Car #${session.carOrdinal}`;
+}
+
+function sessionLabel(session: SessionSummary): string {
+  return `${carLabel(session)} · ${new Date(session.startedAt).toLocaleTimeString()}`;
+}
+
+function metricValue(frame: SessionFrame, metric: Metric): number {
+  switch (metric) {
+    case "rpm":
+      return frame.rpm;
+    case "speed":
+      return frame.speed;
+    case "throttle":
+      return frame.throttle * 100;
+    case "brake":
+      return frame.brake * 100;
+  }
+}
+
 /** Frame indices where lap.number changes from the previous frame - drawn as
- * vertical markers on the analysis charts. */
+ * vertical markers on the analysis chart. Only meaningful with exactly one
+ * session selected (each session has its own lap numbering). */
 function lapBoundaries(frames: SessionFrame[]): number[] {
   const boundaries: number[] = [];
   for (let i = 1; i < frames.length; i++) {
@@ -38,17 +73,14 @@ function lapBoundaries(frames: SessionFrame[]): number[] {
   return boundaries;
 }
 
-const PLAYBACK_SPEEDS = [0.5, 1, 2, 4];
-
 export const SessionsView: React.FC = () => {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [frames, setFrames] = useState<SessionFrame[]>([]);
-  const [frameIndex, setFrameIndex] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [framesById, setFramesById] = useState<Record<string, SessionFrame[]>>({});
+  const [metric, setMetric] = useState<Metric>("rpm");
+  const [exportingBuildKey, setExportingBuildKey] = useState<string | null>(null);
 
   const refresh = () => {
     setLoading(true);
@@ -66,17 +98,18 @@ export const SessionsView: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const selectedSession = sessions.find((s) => s.id === selectedId) ?? null;
-
-  const selectSession = (id: string) => {
-    setSelectedId(id);
-    setFrames([]);
-    setFrameIndex(0);
-    setPlaying(false);
-    sessionApi.frames(id).then(setFrames).catch((e) => setError(String(e)));
+  const toggleSession = (id: string) => {
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      return [...prev, id];
+    });
+    if (!framesById[id]) {
+      sessionApi
+        .frames(id)
+        .then((frames) => setFramesById((prev) => ({ ...prev, [id]: frames })))
+        .catch((e) => setError(String(e)));
+    }
   };
-
-  const [exportingBuildKey, setExportingBuildKey] = useState<string | null>(null);
 
   const handleExportAnalysis = async (buildKey: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -105,32 +138,16 @@ export const SessionsView: React.FC = () => {
     if (!window.confirm("Hapus sesi ini?")) return;
     try {
       await sessionApi.remove(id);
-      if (selectedId === id) {
-        setSelectedId(null);
-        setFrames([]);
-      }
+      setSelectedIds((prev) => prev.filter((x) => x !== id));
       refresh();
     } catch (err) {
       setError(String(err));
     }
   };
 
-  // Playback: advances frameIndex on an interval scaled by `speed`, mirroring
-  // roughly one telemetry frame's worth of real time (~16ms at 60Hz).
-  useEffect(() => {
-    if (!playing || frames.length === 0) return;
-    const interval = window.setInterval(() => {
-      setFrameIndex((i) => {
-        if (i >= frames.length - 1) {
-          setPlaying(false);
-          return i;
-        }
-        return i + 1;
-      });
-    }, 16 / speed);
-    return () => window.clearInterval(interval);
-  }, [playing, speed, frames.length]);
-
+  // Grouped by build (== by tune, or by raw car config when untuned - see
+  // computeBuildKey/processor.ts), ordered tune-name-first then car-name, per
+  // the user's explicit ask ("diawali nama tuningan - nama mobil").
   const groupedByBuild = useMemo(() => {
     const groups = new Map<string, SessionSummary[]>();
     for (const session of sessions) {
@@ -138,35 +155,40 @@ export const SessionsView: React.FC = () => {
       list.push(session);
       groups.set(session.buildKey, list);
     }
-    return Array.from(groups.entries());
+    return Array.from(groups.entries()).sort(([, a], [, b]) => {
+      const tuneA = a[0].tuneName ?? NO_TUNE_LABEL;
+      const tuneB = b[0].tuneName ?? NO_TUNE_LABEL;
+      if (tuneA !== tuneB) return tuneA.localeCompare(tuneB);
+      return carLabel(a[0]).localeCompare(carLabel(b[0]));
+    });
   }, [sessions]);
 
-  const currentFrame = frames[frameIndex] ?? null;
-  const markers = useMemo(() => lapBoundaries(frames), [frames]);
+  const selectedSessions = selectedIds
+    .map((id) => sessions.find((s) => s.id === id))
+    .filter((s): s is SessionSummary => Boolean(s));
 
-  const rpmSpeedData = useMemo(
-    (): [number[], number[], number[]] => [
-      frames.map((_, i) => i),
-      frames.map((f) => f.rpm),
-      frames.map((f) => f.speed),
-    ],
-    [frames],
-  );
+  const overlayData = useMemo((): uPlot.AlignedData => {
+    const seriesFrames = selectedSessions.map((s) => framesById[s.id] ?? []);
+    const maxLen = Math.max(0, ...seriesFrames.map((f) => f.length));
+    const x = Array.from({ length: maxLen }, (_, i) => i);
+    const series = seriesFrames.map((frames) =>
+      Array.from({ length: maxLen }, (_, i) => (i < frames.length ? metricValue(frames[i], metric) : null)),
+    );
+    return [x, ...series] as uPlot.AlignedData;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSessions.map((s) => s.id).join(","), framesById, metric]);
 
-  const throttleBrakeData = useMemo(
-    (): [number[], number[], number[]] => [
-      frames.map((_, i) => i),
-      frames.map((f) => f.throttle * 100),
-      frames.map((f) => f.brake * 100),
-    ],
-    [frames],
-  );
+  const markers = useMemo(() => {
+    if (selectedSessions.length !== 1) return [];
+    return lapBoundaries(framesById[selectedSessions[0].id] ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSessions.map((s) => s.id).join(","), framesById]);
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center p-4">
-      <div className="w-full max-w-6xl bg-gray-950 rounded-2xl border-4 border-gray-800 overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[600px]">
-        {/* Session list */}
-        <div className="w-full md:w-72 border-b md:border-b-0 md:border-r border-gray-800 p-3 overflow-y-auto max-h-[600px]">
+      <div className="w-full bg-gray-950 rounded-2xl border-4 border-gray-800 overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[600px]">
+        {/* Session list, grouped tune -> car */}
+        <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-gray-800 p-3 overflow-y-auto max-h-[600px]">
           <h2 className="text-white text-sm font-bold uppercase tracking-wider mb-3">
             Sesi Tersimpan
           </h2>
@@ -175,15 +197,14 @@ export const SessionsView: React.FC = () => {
             <div className="text-gray-400 text-sm">Memuat...</div>
           ) : sessions.length === 0 ? (
             <div className="text-gray-500 text-sm">
-              Belum ada sesi terekam. Sesi otomatis mulai direkam saat kamu
-              menjalankan event timed di game.
+              Belum ada sesi terekam. Tekan Record di Home untuk mulai merekam.
             </div>
           ) : (
             groupedByBuild.map(([buildKey, group]) => (
               <div key={buildKey} className="mb-4">
                 <div className="flex items-center justify-between gap-1 mb-1">
-                  <div className="text-gray-500 text-[10px] uppercase tracking-wider truncate">
-                    Build {buildKey}
+                  <div className="text-gray-400 text-[10px] uppercase tracking-wider truncate">
+                    {group[0].tuneName ?? NO_TUNE_LABEL} - {carLabel(group[0])}
                   </div>
                   <button
                     onClick={(e) => handleExportAnalysis(buildKey, e)}
@@ -198,16 +219,21 @@ export const SessionsView: React.FC = () => {
                   {group.map((session) => (
                     <li
                       key={session.id}
-                      onClick={() => selectSession(session.id)}
-                      className={`flex items-center justify-between p-2 rounded cursor-pointer border ${
-                        selectedId === session.id
+                      className={`flex items-center gap-2 p-2 rounded border ${
+                        selectedIds.includes(session.id)
                           ? "bg-gray-800 border-blue-700"
                           : "bg-gray-900 border-gray-800 hover:border-gray-700"
                       }`}
                     >
-                      <div>
-                        <div className="text-white text-xs font-semibold">
-                          Car #{session.carOrdinal}
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(session.id)}
+                        onChange={() => toggleSession(session.id)}
+                        className="accent-blue-600 shrink-0"
+                      />
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleSession(session.id)}>
+                        <div className="text-white text-xs font-semibold truncate">
+                          {new Date(session.startedAt).toLocaleString()}
                         </div>
                         <div className="text-gray-500 text-[10px]">
                           {formatDuration(session)} · {session.frameCount} frame ·{" "}
@@ -218,7 +244,7 @@ export const SessionsView: React.FC = () => {
                       </div>
                       <button
                         onClick={(e) => handleDelete(session.id, e)}
-                        className="text-red-400 px-1 text-sm leading-none"
+                        className="text-red-400 px-1 text-sm leading-none shrink-0"
                         aria-label="Hapus sesi"
                       >
                         &times;
@@ -231,105 +257,43 @@ export const SessionsView: React.FC = () => {
           )}
         </div>
 
-        {/* Replay / analysis */}
+        {/* Analysis - no tachometer, pure charts */}
         <div className="flex-1 p-4 overflow-y-auto max-h-[600px]">
-          {!selectedSession ? (
+          {selectedSessions.length === 0 ? (
             <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-              Pilih sesi di sebelah kiri untuk replay & analisis.
+              Centang satu atau lebih sesi di sebelah kiri untuk analisis. Bisa
+              pilih lebih dari satu sesi buat dibandingkan (overlay).
             </div>
-          ) : frames.length === 0 ? (
-            <div className="text-gray-400 text-sm">Memuat frame...</div>
           ) : (
             <div className="flex flex-col gap-4">
-              <div className="flex justify-center">
-                {/* Gauge.tsx renders a fixed 500x500 SVG with no viewBox, so
-                    it can't be sized via a narrower container - `zoom`
-                    reflows layout (unlike transform:scale), so the
-                    container shrinks to fit without a manual crop box. */}
-                <div style={{ zoom: 0.5 }}>
-                  <Gauge
-                    rpm={currentFrame?.rpm ?? 0}
-                    rpmMax={selectedSession.maxRpm}
-                    gear={handleGear(currentFrame?.gear ?? 0)}
-                    speed={currentFrame?.speed ?? 0}
-                    redline={selectedSession.maxRpm}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <ValueDisplay
-                  label="Throttle"
-                  value={Math.round((currentFrame?.throttle ?? 0) * 100)}
-                  unit="%"
-                />
-                <ValueDisplay
-                  label="Brake"
-                  value={Math.round((currentFrame?.brake ?? 0) * 100)}
-                  unit="%"
-                />
-                <ValueDisplay label="Lap" value={currentFrame?.lapNumber ?? "-"} />
-              </div>
-
-              {/* Playback controls */}
               <div className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded p-3">
-                <button
-                  onClick={() => setPlaying((p) => !p)}
-                  className="px-3 py-1 rounded bg-blue-700 text-white text-sm font-bold"
-                >
-                  {playing ? "Pause" : "Play"}
-                </button>
-                <input
-                  type="range"
-                  min={0}
-                  max={Math.max(0, frames.length - 1)}
-                  value={frameIndex}
-                  onChange={(e) => {
-                    setPlaying(false);
-                    setFrameIndex(Number(e.target.value));
-                  }}
-                  className="flex-1"
-                />
-                <span className="text-gray-400 text-xs tabular-nums w-16 text-right">
-                  {frameIndex + 1}/{frames.length}
-                </span>
+                <span className="text-gray-400 text-xs">Metrik:</span>
                 <select
-                  value={speed}
-                  onChange={(e) => setSpeed(Number(e.target.value))}
+                  value={metric}
+                  onChange={(e) => setMetric(e.target.value as Metric)}
                   className="bg-gray-800 text-gray-200 text-xs rounded px-2 py-1 border border-gray-700"
                 >
-                  {PLAYBACK_SPEEDS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}x
+                  {(Object.keys(METRIC_LABEL) as Metric[]).map((m) => (
+                    <option key={m} value={m}>
+                      {METRIC_LABEL[m]}
                     </option>
                   ))}
                 </select>
+                <span className="text-gray-500 text-[10px] ml-auto">
+                  {selectedSessions.length} sesi dipilih
+                </span>
               </div>
 
-              {/* Analysis charts */}
               <div className="bg-gray-900 border border-gray-800 rounded p-2">
                 <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-1 px-1">
-                  RPM / Speed
+                  {METRIC_LABEL[metric]} - overlay per frame
                 </div>
                 <LineChart
-                  data={rpmSpeedData}
-                  series={[
-                    { label: "RPM", color: "#22c55e" },
-                    { label: "Speed (km/h)", color: "#3b82f6" },
-                  ]}
-                  markers={markers}
-                />
-              </div>
-              <div className="bg-gray-900 border border-gray-800 rounded p-2">
-                <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-1 px-1">
-                  Throttle / Brake (%)
-                </div>
-                <LineChart
-                  data={throttleBrakeData}
-                  series={[
-                    { label: "Throttle", color: "#22c55e" },
-                    { label: "Brake", color: "#ef4444" },
-                  ]}
+                  data={overlayData}
+                  series={selectedSessions.map((s, i) => ({
+                    label: sessionLabel(s),
+                    color: OVERLAY_COLORS[i % OVERLAY_COLORS.length],
+                  }))}
                   markers={markers}
                 />
               </div>

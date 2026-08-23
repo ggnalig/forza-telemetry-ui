@@ -47,6 +47,10 @@ export interface SessionSummary {
   endedAt: number | null;
   frameCount: number;
   status: SessionStatus;
+  // Resolved server-side (see session-api-server.ts's enrichSession) - null
+  // tuneName means this build was never tuned (a raw computeBuildKey string).
+  carInfo: CarInfo | null;
+  tuneName: string | null;
 }
 
 export interface SessionFrame {
