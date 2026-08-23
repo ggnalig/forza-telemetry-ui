@@ -1,0 +1,51 @@
+import type { GearboxTune } from "../types";
+
+const BASE_URL = "http://localhost:3002";
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error ?? `Request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export const tuneApi = {
+  list: (carOrdinal: number) =>
+    request<{ tunes: GearboxTune[] }>(`/tunes?carOrdinal=${carOrdinal}`).then(
+      (r) => r.tunes,
+    ),
+
+  create: (carOrdinal: number, name: string, gearRatios: Record<number, number>) =>
+    request<{ tune: GearboxTune }>("/tunes", {
+      method: "POST",
+      body: JSON.stringify({ carOrdinal, name, gearRatios }),
+    }).then((r) => r.tune),
+
+  update: (
+    id: string,
+    updates: { name?: string; gearRatios?: Record<number, number> },
+  ) =>
+    request<{ tune: GearboxTune }>(`/tunes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    }).then((r) => r.tune),
+
+  remove: (id: string) =>
+    request<{ success: boolean }>(`/tunes/${id}`, { method: "DELETE" }),
+
+  activate: (id: string) =>
+    request<{ tune: GearboxTune }>(`/tunes/${id}/activate`, {
+      method: "POST",
+    }).then((r) => r.tune),
+
+  deactivate: (carOrdinal: number) =>
+    request<{ success: boolean }>("/tunes/deactivate", {
+      method: "POST",
+      body: JSON.stringify({ carOrdinal }),
+    }),
+};

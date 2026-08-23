@@ -1,3 +1,12 @@
+export interface GearboxTune {
+  id: string;
+  carOrdinal: number;
+  name: string;
+  gearRatios: Record<number, number>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TelemetryResponse {
   parsed: {
     isRaceOn: number;
@@ -151,6 +160,10 @@ export interface TelemetryResponse {
     model: string;
     displayName: string;
   } | null;
+  // The manually-entered gear-ratio tune active for this car, if any (see
+  // the Tune API on port 3002) - null means gear ratios come from the
+  // backend's statistical estimate instead.
+  activeTune: GearboxTune | null;
   // Single source of truth for whether the "smart" gauge features (dynamic
   // redline, shift recommendation, shift lights) should be shown at all -
   // set server-side from the SHOW_RECOMMENDATION env var. When false, the
@@ -213,6 +226,8 @@ export interface TelemetryData extends TelemetryFrame {
   redLine: number;
   showRecommendation: boolean;
   carName: string | null;
+  carOrdinal: number | null;
+  activeTune: GearboxTune | null;
   shiftRecommendation: ShiftRecommendation;
   // Raw 10-position light bar straight from the API, rendered literally by
   // ShiftLights.tsx - see that component for why this isn't reduced to an

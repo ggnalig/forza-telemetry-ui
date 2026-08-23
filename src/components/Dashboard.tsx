@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { useTelemetry } from "../hooks/useTelemetry";
 import { CarNameplate } from "./CarNameplate";
 import { ShiftLights } from "./ShiftLights";
 import { Gauge } from "./Gauge";
 import { ValueDisplay } from "./ValueDisplay";
+import { TunePanel } from "./TunePanel";
 import {
   highlightPercentageValue,
   highlightShiftRecommendation,
@@ -11,6 +12,7 @@ import {
 
 export const Dashboard: React.FC = () => {
   const { data, connected } = useTelemetry();
+  const [tunePanelOpen, setTunePanelOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
@@ -20,8 +22,21 @@ export const Dashboard: React.FC = () => {
           className={`absolute top-2 right-4 w-3 h-3 rounded-full ${connected ? "bg-green-500 shadow-[0_0_10px_#22c55e]" : "bg-red-500 animate-pulse"}`}
         />
 
+        {/* Tune management button */}
+        {data.carOrdinal !== null && (
+          <button
+            onClick={() => setTunePanelOpen(true)}
+            className="absolute top-1.5 right-10 text-[10px] font-bold tracking-wider text-gray-500 hover:text-gray-300 uppercase px-2 py-1"
+          >
+            ⚙ Tunes
+          </button>
+        )}
+
         {/* Top: Car Nameplate */}
-        <CarNameplate carName={data.carName} />
+        <CarNameplate
+          carName={data.carName}
+          activeTuneName={data.activeTune?.name}
+        />
 
         {/* Shift Lights - hidden while showRecommendation is off, see useTelemetry.ts */}
         {data.showRecommendation && <ShiftLights lights={data.shiftLights} />}
@@ -102,6 +117,14 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {tunePanelOpen && data.carOrdinal !== null && (
+        <TunePanel
+          carOrdinal={data.carOrdinal}
+          activeTuneId={data.activeTune?.id ?? null}
+          onClose={() => setTunePanelOpen(false)}
+        />
+      )}
     </div>
   );
 };
