@@ -185,120 +185,126 @@ export const SessionsView: React.FC = () => {
   }, [selectedSessions.map((s) => s.id).join(","), framesById]);
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center p-4">
-      <div className="w-full bg-gray-950 rounded-2xl border-4 border-gray-800 overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[600px]">
-        {/* Session list, grouped tune -> car */}
-        <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-gray-800 p-3 overflow-y-auto max-h-[600px]">
+    <div className="min-h-screen bg-black p-4">
+      <div className="mx-auto">
+        <h1 className="text-white text-xl font-bold mb-3">Sessions</h1>
+        <div className="flex gap-1 mb-4 border-b border-gray-800">
           <h2 className="text-white text-sm font-bold uppercase tracking-wider mb-3">
             Sesi Tersimpan
           </h2>
-          {error && <div className="text-red-400 text-xs mb-2">{error}</div>}
-          {loading ? (
-            <div className="text-gray-400 text-sm">Memuat...</div>
-          ) : sessions.length === 0 ? (
-            <div className="text-gray-500 text-sm">
-              Belum ada sesi terekam. Tekan Record di Home untuk mulai merekam.
-            </div>
-          ) : (
-            groupedByBuild.map(([buildKey, group]) => (
-              <div key={buildKey} className="mb-4">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <div className="text-gray-400 text-[10px] uppercase tracking-wider truncate">
-                    {group[0].tuneName ?? NO_TUNE_LABEL} - {carLabel(group[0])}
-                  </div>
-                  <button
-                    onClick={(e) => handleExportAnalysis(buildKey, e)}
-                    disabled={exportingBuildKey === buildKey}
-                    className="text-[10px] text-blue-400 hover:text-blue-300 disabled:opacity-50 shrink-0"
-                    title="Export analisis RPM (JSON) untuk build ini"
-                  >
-                    {exportingBuildKey === buildKey ? "..." : "⬇ Export"}
-                  </button>
-                </div>
-                <ul className="space-y-1">
-                  {group.map((session) => (
-                    <li
-                      key={session.id}
-                      className={`flex items-center gap-2 p-2 rounded border ${
-                        selectedIds.includes(session.id)
-                          ? "bg-gray-800 border-blue-700"
-                          : "bg-gray-900 border-gray-800 hover:border-gray-700"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(session.id)}
-                        onChange={() => toggleSession(session.id)}
-                        className="accent-blue-600 shrink-0"
-                      />
-                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleSession(session.id)}>
-                        <div className="text-white text-xs font-semibold truncate">
-                          {new Date(session.startedAt).toLocaleString()}
-                        </div>
-                        <div className="text-gray-500 text-[10px]">
-                          {formatDuration(session)} · {session.frameCount} frame ·{" "}
-                          <span className={STATUS_COLOR[session.status]}>
-                            {STATUS_LABEL[session.status]}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => handleDelete(session.id, e)}
-                        className="text-red-400 px-1 text-sm leading-none shrink-0"
-                        aria-label="Hapus sesi"
-                      >
-                        &times;
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
-          )}
         </div>
-
-        {/* Analysis - no tachometer, pure charts */}
-        <div className="flex-1 p-4 overflow-y-auto max-h-[600px]">
-          {selectedSessions.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-              Centang satu atau lebih sesi di sebelah kiri untuk analisis. Bisa
-              pilih lebih dari satu sesi buat dibandingkan (overlay).
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded p-3">
-                <span className="text-gray-400 text-xs">Metrik:</span>
-                <select
-                  value={metric}
-                  onChange={(e) => setMetric(e.target.value as Metric)}
-                  className="bg-gray-800 text-gray-200 text-xs rounded px-2 py-1 border border-gray-700"
-                >
-                  {(Object.keys(METRIC_LABEL) as Metric[]).map((m) => (
-                    <option key={m} value={m}>
-                      {METRIC_LABEL[m]}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-gray-500 text-[10px] ml-auto">
-                  {selectedSessions.length} sesi dipilih
-                </span>
+        <div className="flex gap-4 h-[calc(100vh-140px)]">
+          {/* Session list, grouped tune -> car */}
+          <div className="w-80 shrink-0 border border-gray-800 rounded bg-gray-950 overflow-y-auto p-3">
+            
+            {error && <div className="text-red-400 text-xs mb-2">{error}</div>}
+            {loading ? (
+              <div className="text-gray-400 text-sm">Memuat...</div>
+            ) : sessions.length === 0 ? (
+              <div className="text-gray-500 text-sm">
+                Belum ada sesi terekam. Tekan Record di Home untuk mulai merekam.
               </div>
-
-              <div className="bg-gray-900 border border-gray-800 rounded p-2">
-                <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-1 px-1">
-                  {METRIC_LABEL[metric]} - overlay per frame
+            ) : (
+              groupedByBuild.map(([buildKey, group]) => (
+                <div key={buildKey} className="mb-4">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <div className="text-gray-400 text-[10px] uppercase tracking-wider truncate">
+                      {group[0].tuneName ?? NO_TUNE_LABEL} - {carLabel(group[0])}
+                    </div>
+                    <button
+                      onClick={(e) => handleExportAnalysis(buildKey, e)}
+                      disabled={exportingBuildKey === buildKey}
+                      className="text-[10px] text-blue-400 hover:text-blue-300 disabled:opacity-50 shrink-0"
+                      title="Export analisis RPM (JSON) untuk build ini"
+                    >
+                      {exportingBuildKey === buildKey ? "..." : "⬇ Export"}
+                    </button>
+                  </div>
+                  <ul className="space-y-1">
+                    {group.map((session) => (
+                      <li
+                        key={session.id}
+                        className={`flex items-center gap-2 p-2 rounded border ${
+                          selectedIds.includes(session.id)
+                            ? "bg-gray-800 border-blue-700"
+                            : "bg-gray-900 border-gray-800 hover:border-gray-700"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(session.id)}
+                          onChange={() => toggleSession(session.id)}
+                          className="accent-blue-600 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleSession(session.id)}>
+                          <div className="text-white text-xs font-semibold truncate">
+                            {new Date(session.startedAt).toLocaleString()}
+                          </div>
+                          <div className="text-gray-500 text-[10px]">
+                            {formatDuration(session)} · {session.frameCount} frame ·{" "}
+                            <span className={STATUS_COLOR[session.status]}>
+                              {STATUS_LABEL[session.status]}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => handleDelete(session.id, e)}
+                          className="text-red-400 px-1 text-sm leading-none shrink-0"
+                          aria-label="Hapus sesi"
+                        >
+                          &times;
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <LineChart
-                  data={overlayData}
-                  series={selectedSessions.map((s, i) => ({
-                    label: sessionLabel(s),
-                    color: OVERLAY_COLORS[i % OVERLAY_COLORS.length],
-                  }))}
-                  markers={markers}
-                />
+              ))
+            )}
+          </div>
+
+          {/* Analysis - no tachometer, pure charts */}
+          <div className="flex-1 min-w-0 border border-gray-800 rounded bg-gray-950 p-4 overflow-y-auto">
+            {selectedSessions.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+                Centang satu atau lebih sesi di sebelah kiri untuk analisis. Bisa
+                pilih lebih dari satu sesi buat dibandingkan (overlay).
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded p-3">
+                  <span className="text-gray-400 text-xs">Metrik:</span>
+                  <select
+                    value={metric}
+                    onChange={(e) => setMetric(e.target.value as Metric)}
+                    className="bg-gray-800 text-gray-200 text-xs rounded px-2 py-1 border border-gray-700"
+                  >
+                    {(Object.keys(METRIC_LABEL) as Metric[]).map((m) => (
+                      <option key={m} value={m}>
+                        {METRIC_LABEL[m]}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-gray-500 text-[10px] ml-auto">
+                    {selectedSessions.length} sesi dipilih
+                  </span>
+                </div>
+
+                <div className="bg-gray-900 border border-gray-800 rounded p-2">
+                  <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-1 px-1">
+                    {METRIC_LABEL[metric]} - overlay per frame
+                  </div>
+                  <LineChart
+                    data={overlayData}
+                    series={selectedSessions.map((s, i) => ({
+                      label: sessionLabel(s),
+                      color: OVERLAY_COLORS[i % OVERLAY_COLORS.length],
+                    }))}
+                    markers={markers}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

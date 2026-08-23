@@ -301,7 +301,7 @@ export const CarSettingsView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-black p-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="mx-auto">
         <h1 className="text-white text-xl font-bold mb-3">Car Settings</h1>
         <div className="flex gap-1 mb-4 border-b border-gray-800">
           <TabButton active={tab === "general"} onClick={() => setTab("general")}>
