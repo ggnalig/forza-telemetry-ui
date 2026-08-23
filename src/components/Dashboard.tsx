@@ -5,6 +5,7 @@ import { Gauge } from "./Gauge";
 import { ValueDisplay } from "./ValueDisplay";
 import { TunePanel } from "./TunePanel";
 import { ShiftLightBar } from "./ShiftLightBar";
+import { RecordButton } from "./RecordButton";
 import { highlightPercentageValue } from "../utils/helper";
 
 export const Dashboard: React.FC = () => {
@@ -18,6 +19,9 @@ export const Dashboard: React.FC = () => {
         <div
           className={`absolute top-2 right-4 w-3 h-3 rounded-full ${connected ? "bg-green-500 shadow-[0_0_10px_#22c55e]" : "bg-red-500 animate-pulse"}`}
         />
+
+        {/* Session recording toggle - manual, see RecordButton's doc comment */}
+        <RecordButton />
 
         {/* Tune management button */}
         {data.carOrdinal !== null && (

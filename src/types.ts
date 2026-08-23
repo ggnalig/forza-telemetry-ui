@@ -253,3 +253,8 @@ export interface RpmAnalysisReport {
   suggestedShiftLightRpm: Record<string, number>;
   generatedAt: string;
 }
+
+export interface RecordingStatus {
+  recording: boolean;
+  activeSessionId: string | null;
+}

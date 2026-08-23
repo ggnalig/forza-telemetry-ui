@@ -1,4 +1,4 @@
-import type { SessionSummary, SessionFrame, RpmAnalysisReport } from "../types";
+import type { SessionSummary, SessionFrame, RpmAnalysisReport, RecordingStatus } from "../types";
 
 const BASE_URL = "http://localhost:3003";
 
@@ -35,4 +35,12 @@ export const sessionApi = {
     request<{ report: RpmAnalysisReport }>(
       `/analysis?buildKey=${encodeURIComponent(buildKey)}`,
     ).then((r) => r.report),
+
+  // Recording is a manual on/off toggle (the "Record" button) - neither
+  // isRaceOn nor lap.number reliably distinguishes a timed event from
+  // free-roam driving (confirmed in-game), so there's no way to infer this
+  // automatically; see the API's session-recorder.ts doc comment.
+  recordingStatus: () => request<RecordingStatus>("/recording"),
+  startRecording: () => request<RecordingStatus>("/recording/start", { method: "POST" }),
+  stopRecording: () => request<RecordingStatus>("/recording/stop", { method: "POST" }),
 };
