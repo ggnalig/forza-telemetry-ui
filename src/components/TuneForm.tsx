@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { GearboxTune } from "../types";
 import { tuneApi } from "../services/tuneApi";
+import { SliderInput } from "./SliderInput";
 
 interface TuneFormProps {
   carOrdinal: number;
@@ -16,16 +17,14 @@ interface RatioRow {
 
 interface GearRpmRow {
   gear: string;
-  maxRpm: string;
+  maxRpm: number;
 }
 
-/** Percent fields are edited as whole numbers (e.g. "90") and converted
- * to/from the 0-1 fractions GearboxTune actually stores. */
-function percentToFraction(value: string): number | undefined {
-  if (value.trim() === "") return undefined;
-  const n = Number(value);
-  return Number.isNaN(n) ? undefined : n / 100;
-}
+const RPM_SLIDER_MIN = 0;
+const RPM_SLIDER_MAX = 20000;
+const RPM_SLIDER_STEP = 50;
+const PERCENT_SLIDER_MIN = 0;
+const PERCENT_SLIDER_MAX = 100;
 
 export const TuneForm: React.FC<TuneFormProps> = ({
   carOrdinal,
@@ -42,37 +41,37 @@ export const TuneForm: React.FC<TuneFormProps> = ({
         }))
       : [{ gear: "1", ratio: "" }],
   );
-  const [showAdvanced, setShowAdvanced] = useState(
-    Boolean(
-      initial?.maxRpmOverride ||
-        initial?.redlineOverride ||
-        initial?.shiftLightPercents ||
-        initial?.maxRpmPerGearOverride,
-    ),
-  );
-  const [maxRpmOverride, setMaxRpmOverride] = useState(
-    initial?.maxRpmOverride !== undefined ? String(initial.maxRpmOverride) : "",
-  );
-  const [redlineOverride, setRedlineOverride] = useState(
-    initial?.redlineOverride !== undefined ? String(initial.redlineOverride) : "",
-  );
+
+  // Each override is an explicit on/off toggle (like SimHub's per-field
+  // toggle) rather than "empty string means off" - clearer intent, and the
+  // slider always has a real number to show even before being enabled.
+  const [maxRpmOverrideOn, setMaxRpmOverrideOn] = useState(initial?.maxRpmOverride !== undefined);
+  const [maxRpmOverride, setMaxRpmOverride] = useState(initial?.maxRpmOverride ?? 9000);
+
+  const [redlineOverrideOn, setRedlineOverrideOn] = useState(initial?.redlineOverride !== undefined);
+  const [redlineOverride, setRedlineOverride] = useState(initial?.redlineOverride ?? 9000);
+
+  const [shiftLightOn, setShiftLightOn] = useState(Boolean(initial?.shiftLightPercents));
   const [light1Percent, setLight1Percent] = useState(
-    initial?.shiftLightPercents ? String(Math.round(initial.shiftLightPercents.light1 * 100)) : "",
+    Math.round((initial?.shiftLightPercents?.light1 ?? 0.9) * 100),
   );
   const [light2Percent, setLight2Percent] = useState(
-    initial?.shiftLightPercents ? String(Math.round(initial.shiftLightPercents.light2 * 100)) : "",
+    Math.round((initial?.shiftLightPercents?.light2 ?? 0.95) * 100),
   );
   const [redlinePercent, setRedlinePercent] = useState(
-    initial?.shiftLightPercents ? String(Math.round(initial.shiftLightPercents.redline * 100)) : "",
+    Math.round((initial?.shiftLightPercents?.redline ?? 0.96) * 100),
   );
+
+  const [perGearOn, setPerGearOn] = useState(Boolean(initial?.maxRpmPerGearOverride));
   const [gearRpmRows, setGearRpmRows] = useState<GearRpmRow[]>(
     initial?.maxRpmPerGearOverride
       ? Object.entries(initial.maxRpmPerGearOverride).map(([gear, maxRpm]) => ({
           gear,
-          maxRpm: String(maxRpm),
+          maxRpm,
         }))
-      : [],
+      : [{ gear: "1", maxRpm: 9000 }],
   );
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,13 +86,14 @@ export const TuneForm: React.FC<TuneFormProps> = ({
     setRows(rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   };
 
-  const addGearRpmRow = () => setGearRpmRows([...gearRpmRows, { gear: "1", maxRpm: "" }]);
+  const addGearRpmRow = () => setGearRpmRows([...gearRpmRows, { gear: "1", maxRpm: 9000 }]);
   const removeGearRpmRow = (index: number) =>
     setGearRpmRows(gearRpmRows.filter((_, i) => i !== index));
-  const updateGearRpmRow = (index: number, field: keyof GearRpmRow, value: string) => {
-    setGearRpmRows(
-      gearRpmRows.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
-    );
+  const updateGearRpmGear = (index: number, gear: string) => {
+    setGearRpmRows(gearRpmRows.map((row, i) => (i === index ? { ...row, gear } : row)));
+  };
+  const updateGearRpmValue = (index: number, maxRpm: number) => {
+    setGearRpmRows(gearRpmRows.map((row, i) => (i === index ? { ...row, maxRpm } : row)));
   };
 
   const handleSave = async () => {
@@ -119,33 +119,24 @@ export const TuneForm: React.FC<TuneFormProps> = ({
     }
 
     let maxRpmPerGearOverride: Record<number, number> | undefined;
-    if (gearRpmRows.length > 0) {
+    if (perGearOn) {
       maxRpmPerGearOverride = {};
       for (const row of gearRpmRows) {
         const gear = Number(row.gear);
-        const maxRpm = Number(row.maxRpm);
-        if (!gear || !maxRpm || Number.isNaN(gear) || Number.isNaN(maxRpm)) {
-          setError("Override max RPM per gigi harus diisi angka yang valid");
+        if (!gear || Number.isNaN(gear)) {
+          setError("Gigi pada override per-gigi harus diisi angka yang valid");
           return;
         }
-        maxRpmPerGearOverride[gear] = maxRpm;
+        maxRpmPerGearOverride[gear] = row.maxRpm;
       }
     }
 
-    const light1 = percentToFraction(light1Percent);
-    const light2 = percentToFraction(light2Percent);
-    const redline = percentToFraction(redlinePercent);
-    const shiftLightPercents =
-      light1 !== undefined && light2 !== undefined && redline !== undefined
-        ? { light1, light2, redline }
-        : undefined;
-    if ((light1 !== undefined || light2 !== undefined || redline !== undefined) && !shiftLightPercents) {
-      setError("Isi ketiga persentase shift-light (atau kosongkan semuanya)");
-      return;
-    }
+    const shiftLightPercents = shiftLightOn
+      ? { light1: light1Percent / 100, light2: light2Percent / 100, redline: redlinePercent / 100 }
+      : undefined;
 
-    const maxRpmOverrideValue = maxRpmOverride.trim() === "" ? undefined : Number(maxRpmOverride);
-    const redlineOverrideValue = redlineOverride.trim() === "" ? undefined : Number(redlineOverride);
+    const maxRpmOverrideValue = maxRpmOverrideOn ? maxRpmOverride : undefined;
+    const redlineOverrideValue = redlineOverrideOn ? redlineOverride : undefined;
 
     setSaving(true);
     try {
@@ -219,118 +210,142 @@ export const TuneForm: React.FC<TuneFormProps> = ({
           </div>
         ))}
       </div>
-      <button onClick={addRow} className="text-sm text-blue-400 mb-4">
+      <button onClick={addRow} className="text-sm text-blue-400 mb-5">
         + Tambah gigi
       </button>
 
-      <button
-        onClick={() => setShowAdvanced(!showAdvanced)}
-        className="w-full text-left text-xs text-gray-400 hover:text-gray-200 mb-3 uppercase tracking-wider"
-      >
-        {showAdvanced ? "▾" : "▸"} Override RPM Manual (opsional)
-      </button>
+      <div className="space-y-5 bg-gray-900/50 border border-gray-800 rounded p-3">
+        <p className="text-gray-500 text-xs">
+          Override RPM manual - buat mengoreksi max RPM/redline kalau data dari
+          game meleset. Lihat <span className="text-gray-400">Rev Ceiling</span>{" "}
+          di Home atau export analisis sesi buat acuan angkanya.
+        </p>
 
-      {showAdvanced && (
-        <div className="mb-4 space-y-3 bg-gray-900/50 border border-gray-800 rounded p-3">
-          <p className="text-gray-500 text-xs">
-            Buat mengoreksi max RPM/redline kalau data dari game meleset -
-            lihat hasil test <span className="text-gray-400">Rev Ceiling</span>{" "}
-            di dashboard atau export analisis sesi buat acuan angkanya.
-          </p>
+        <label className="flex items-center gap-2 text-sm text-gray-300">
+          <input
+            type="checkbox"
+            checked={maxRpmOverrideOn}
+            onChange={(e) => setMaxRpmOverrideOn(e.target.checked)}
+          />
+          Override maximum RPM
+        </label>
+        <SliderInput
+          label="Max RPM"
+          value={maxRpmOverride}
+          min={RPM_SLIDER_MIN}
+          max={RPM_SLIDER_MAX}
+          step={RPM_SLIDER_STEP}
+          unit="RPM"
+          onChange={setMaxRpmOverride}
+          disabled={!maxRpmOverrideOn}
+        />
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-gray-400 text-xs mb-1">Override Max RPM</label>
-              <input
-                type="number"
-                value={maxRpmOverride}
-                onChange={(e) => setMaxRpmOverride(e.target.value)}
-                placeholder="mis. 9499"
-                className="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1 text-white outline-none focus:border-blue-600"
-              />
-            </div>
-            <div>
-              <label className="block text-gray-400 text-xs mb-1">Redline Manual</label>
-              <input
-                type="number"
-                value={redlineOverride}
-                onChange={(e) => setRedlineOverride(e.target.value)}
-                placeholder="mis. 9000"
-                className="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1 text-white outline-none focus:border-blue-600"
-              />
-            </div>
-          </div>
+        <label className="flex items-center gap-2 text-sm text-gray-300">
+          <input
+            type="checkbox"
+            checked={redlineOverrideOn}
+            onChange={(e) => setRedlineOverrideOn(e.target.checked)}
+          />
+          Redline manual (independen dari Max RPM)
+        </label>
+        <SliderInput
+          label="Redline"
+          value={redlineOverride}
+          min={RPM_SLIDER_MIN}
+          max={RPM_SLIDER_MAX}
+          step={RPM_SLIDER_STEP}
+          unit="RPM"
+          onChange={setRedlineOverride}
+          disabled={!redlineOverrideOn}
+        />
 
-          <div>
-            <label className="block text-gray-400 text-xs mb-1">
-              Shift-Light % (dari Max RPM - ala SimHub)
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <input
-                type="number"
-                value={light1Percent}
-                onChange={(e) => setLight1Percent(e.target.value)}
-                placeholder="Light 1 % (90)"
-                className="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1 text-white outline-none focus:border-blue-600"
-              />
-              <input
-                type="number"
-                value={light2Percent}
-                onChange={(e) => setLight2Percent(e.target.value)}
-                placeholder="Light 2 % (95)"
-                className="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1 text-white outline-none focus:border-blue-600"
-              />
-              <input
-                type="number"
-                value={redlinePercent}
-                onChange={(e) => setRedlinePercent(e.target.value)}
-                placeholder="Redline % (96)"
-                className="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1 text-white outline-none focus:border-blue-600"
-              />
-            </div>
-          </div>
+        <label className="flex items-center gap-2 text-sm text-gray-300">
+          <input
+            type="checkbox"
+            checked={shiftLightOn}
+            onChange={(e) => setShiftLightOn(e.target.checked)}
+          />
+          Shift-light % khusus tune ini (ala SimHub, default pakai General Settings)
+        </label>
+        <div className="space-y-3 pl-1">
+          <SliderInput
+            label="Shift light 1 %"
+            value={light1Percent}
+            min={PERCENT_SLIDER_MIN}
+            max={PERCENT_SLIDER_MAX}
+            unit="%"
+            onChange={setLight1Percent}
+            disabled={!shiftLightOn}
+          />
+          <SliderInput
+            label="Shift light 2 %"
+            value={light2Percent}
+            min={PERCENT_SLIDER_MIN}
+            max={PERCENT_SLIDER_MAX}
+            unit="%"
+            onChange={setLight2Percent}
+            disabled={!shiftLightOn}
+          />
+          <SliderInput
+            label="Redline %"
+            value={redlinePercent}
+            min={PERCENT_SLIDER_MIN}
+            max={PERCENT_SLIDER_MAX}
+            unit="%"
+            onChange={setRedlinePercent}
+            disabled={!shiftLightOn}
+          />
+        </div>
 
-          <div>
-            <label className="block text-gray-400 text-xs mb-1">
-              Override Max RPM per Gigi (jarang dipakai)
-            </label>
-            <div className="space-y-2">
-              {gearRpmRows.map((row, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input
-                    type="number"
-                    value={row.gear}
-                    onChange={(e) => updateGearRpmRow(i, "gear", e.target.value)}
-                    placeholder="Gigi"
-                    className="w-20 bg-gray-900 border border-gray-800 rounded px-2 py-1 text-white outline-none focus:border-blue-600"
-                  />
-                  <input
-                    type="number"
+        <label className="flex items-center gap-2 text-sm text-gray-300">
+          <input
+            type="checkbox"
+            checked={perGearOn}
+            onChange={(e) => setPerGearOn(e.target.checked)}
+          />
+          Per gear redline definition (jarang dipakai)
+        </label>
+        {perGearOn && (
+          <div className="space-y-3 pl-1">
+            {gearRpmRows.map((row, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={row.gear}
+                  onChange={(e) => updateGearRpmGear(i, e.target.value)}
+                  placeholder="Gigi"
+                  className="w-16 shrink-0 bg-gray-900 border border-gray-800 rounded px-2 py-1 text-white text-sm outline-none focus:border-blue-600"
+                />
+                <div className="flex-1">
+                  <SliderInput
+                    label={`Gigi ${row.gear || "?"}`}
                     value={row.maxRpm}
-                    onChange={(e) => updateGearRpmRow(i, "maxRpm", e.target.value)}
-                    placeholder="Max RPM"
-                    className="flex-1 bg-gray-900 border border-gray-800 rounded px-2 py-1 text-white outline-none focus:border-blue-600"
+                    min={RPM_SLIDER_MIN}
+                    max={RPM_SLIDER_MAX}
+                    step={RPM_SLIDER_STEP}
+                    unit="RPM"
+                    onChange={(v) => updateGearRpmValue(i, v)}
                   />
-                  <button
-                    onClick={() => removeGearRpmRow(i)}
-                    className="text-red-400 px-2 text-lg leading-none"
-                    aria-label="Hapus override gigi ini"
-                  >
-                    &times;
-                  </button>
                 </div>
-              ))}
-            </div>
-            <button onClick={addGearRpmRow} className="text-sm text-blue-400 mt-2">
+                <button
+                  onClick={() => removeGearRpmRow(i)}
+                  className="text-red-400 px-2 text-lg leading-none self-end mb-1"
+                  aria-label="Hapus override gigi ini"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+            <button onClick={addGearRpmRow} className="text-sm text-blue-400">
               + Tambah override gigi
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {error && <div className="text-red-400 text-sm mb-3">{error}</div>}
+      {error && <div className="text-red-400 text-sm my-3">{error}</div>}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 mt-4">
         <button
           onClick={handleSave}
           disabled={saving}

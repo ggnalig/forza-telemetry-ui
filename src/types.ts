@@ -17,6 +17,24 @@ export interface GearboxTune {
   updatedAt: string;
 }
 
+export interface CarInfo {
+  carId: number;
+  year: number;
+  make: string;
+  model: string;
+  displayName: string;
+}
+
+/** What GET /tunes/all returns - each tune with its car name resolved
+ * server-side, so the Car Settings tree doesn't need a second round trip. */
+export interface TuneWithCarInfo extends GearboxTune {
+  carInfo: CarInfo | null;
+}
+
+export interface GeneralSettings {
+  shiftLightPercents: ShiftLightPercents;
+}
+
 export type SessionStatus = "recording" | "completed" | "aborted";
 
 export interface SessionSummary {
@@ -193,13 +211,7 @@ export interface TelemetryResponse {
   // space even though their UDP wire formats differ - the backend parses
   // FH6's own 324-byte Data Out format) - null when the ordinal isn't in
   // either source.
-  carInfo: {
-    carId: number;
-    year: number;
-    make: string;
-    model: string;
-    displayName: string;
-  } | null;
+  carInfo: CarInfo | null;
   // The manually-entered gear-ratio tune active for this car, if any (see
   // the Tune API on port 3002) - null means no tune has been selected.
   activeTune: GearboxTune | null;

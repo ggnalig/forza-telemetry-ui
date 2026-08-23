@@ -14,7 +14,7 @@ export const RecordButton: React.FC = () => {
 
   useEffect(() => {
     // Deferred so the initial setState doesn't happen synchronously in the
-    // effect body (react-hooks/set-state-in-effect) - mirrors TunePanel.
+    // effect body (react-hooks/set-state-in-effect) - mirrors CarSettingsView.
     const timer = window.setTimeout(() => {
       sessionApi
         .recordingStatus()

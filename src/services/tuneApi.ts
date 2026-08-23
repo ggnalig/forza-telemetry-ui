@@ -1,4 +1,4 @@
-import type { GearboxTune, ShiftLightPercents } from "../types";
+import type { GearboxTune, ShiftLightPercents, TuneWithCarInfo, GeneralSettings } from "../types";
 
 // Not hardcoded "localhost" - see useTelemetry.ts's DEFAULT_WS_URL comment
 // for why (a phone opening this page via the PC's LAN IP needs that same
@@ -40,6 +40,24 @@ export const tuneApi = {
     request<{ tunes: GearboxTune[] }>(`/tunes?carOrdinal=${carOrdinal}`).then(
       (r) => r.tunes,
     ),
+
+  // Every tune across every car, car name resolved server-side - the Car
+  // Settings tree's data source.
+  listAll: () =>
+    request<{ tunes: TuneWithCarInfo[] }>("/tunes/all").then((r) => r.tunes),
+
+  getActive: (carOrdinal: number) =>
+    request<{ tune: GearboxTune | null }>(`/tunes/active?carOrdinal=${carOrdinal}`).then(
+      (r) => r.tune,
+    ),
+
+  getGeneralSettings: () => request<GeneralSettings>("/settings/general"),
+
+  setGeneralSettings: (settings: GeneralSettings) =>
+    request<GeneralSettings>("/settings/general", {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    }),
 
   create: (
     carOrdinal: number,
