@@ -1,6 +1,24 @@
-import type { GearboxTune } from "../types";
+import type { GearboxTune, ShiftLightPercents } from "../types";
 
 const BASE_URL = "http://localhost:3002";
+
+interface GearboxTuneOverrides {
+  maxRpmOverride?: number;
+  maxRpmPerGearOverride?: Record<number, number>;
+  redlineOverride?: number;
+  shiftLightPercents?: ShiftLightPercents;
+}
+
+/** Same fields, but allowing `null` too - the wire sentinel for "clear this
+ * override" on an update (see tune-api-server.ts's PUT handler; JSON.stringify
+ * drops `undefined` keys entirely, so `null` is the only way to express
+ * "explicitly cleared" over HTTP). */
+interface GearboxTuneOverrideUpdates {
+  maxRpmOverride?: number | null;
+  maxRpmPerGearOverride?: Record<number, number> | null;
+  redlineOverride?: number | null;
+  shiftLightPercents?: ShiftLightPercents | null;
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
@@ -20,15 +38,20 @@ export const tuneApi = {
       (r) => r.tunes,
     ),
 
-  create: (carOrdinal: number, name: string, gearRatios: Record<number, number>) =>
+  create: (
+    carOrdinal: number,
+    name: string,
+    gearRatios: Record<number, number>,
+    overrides: GearboxTuneOverrides = {},
+  ) =>
     request<{ tune: GearboxTune }>("/tunes", {
       method: "POST",
-      body: JSON.stringify({ carOrdinal, name, gearRatios }),
+      body: JSON.stringify({ carOrdinal, name, gearRatios, ...overrides }),
     }).then((r) => r.tune),
 
   update: (
     id: string,
-    updates: { name?: string; gearRatios?: Record<number, number> },
+    updates: { name?: string; gearRatios?: Record<number, number> } & GearboxTuneOverrideUpdates,
   ) =>
     request<{ tune: GearboxTune }>(`/tunes/${id}`, {
       method: "PUT",

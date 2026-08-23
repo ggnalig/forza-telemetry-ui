@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import type { TelemetryData, TelemetryResponse } from "../types";
 import { handleGear } from "../utils/helper";
 
+const DEFAULT_SHIFT_LIGHT_PERCENTS = { light1: 0.9, light2: 0.95, redline: 0.96 };
+
 // Set to true to preview the dashboard without a live Forza session/API
 // running (e.g. `npm run dev` with no forza-telemetry backend up).
 const MOCK_DATA = false;
@@ -24,6 +26,7 @@ const initialData: TelemetryData = {
   carOrdinal: null,
   activeTune: null,
   observedRpmCeiling: 0,
+  shiftLightPercents: DEFAULT_SHIFT_LIGHT_PERCENTS,
 };
 
 export const useTelemetry = (url: string = "ws://localhost:3001") => {
@@ -65,11 +68,6 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
 
             const currentGear = input?.gear ?? 0;
 
-            // Forza's own EngineMaxRpm field is documented by the community as
-            // literally "the redline rpm of the car" - the gauge's redline
-            // reads it as-is, no margin/adjustment applied.
-            const redLine = engine.maxRpm;
-
             const transformedData: TelemetryData = {
               gear: handleGear(currentGear),
               rpm: engine?.rpm ?? 0,
@@ -92,12 +90,18 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
               // PAST the visual end of the gauge. Tick labels still come out
               // as clean round numbers regardless (Gauge.tsx computes those
               // separately via `Math.floor(rpmMax / tickStep)`).
-              rpmMax: engine?.maxRpm ?? 0,
-              redLine,
+              //
+              // rpmMax/redLine come from the backend's effective values, not
+              // engine.maxRpm directly - TelemetryProcessor already applies
+              // the active tune's manual overrides (if any), see
+              // computeEffectiveRpm there.
+              rpmMax: diagnostics?.effectiveMaxRpm ?? engine?.maxRpm ?? 0,
+              redLine: diagnostics?.effectiveRedline ?? engine?.maxRpm ?? 0,
               carName: carInfo?.displayName ?? null,
               carOrdinal: car?.ordinal ?? null,
               activeTune: activeTune ?? null,
               observedRpmCeiling: diagnostics?.observedRpmCeiling ?? 0,
+              shiftLightPercents: diagnostics?.shiftLightPercents ?? DEFAULT_SHIFT_LIGHT_PERCENTS,
             };
 
             setData(transformedData);
@@ -144,6 +148,7 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
           carOrdinal: 4114,
           activeTune: null,
           observedRpmCeiling: Math.max(prev.observedRpmCeiling, rpm),
+          shiftLightPercents: DEFAULT_SHIFT_LIGHT_PERCENTS,
         }));
       }, 16); // ~60Hz
     }

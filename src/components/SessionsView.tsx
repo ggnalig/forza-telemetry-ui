@@ -76,6 +76,30 @@ export const SessionsView: React.FC = () => {
     sessionApi.frames(id).then(setFrames).catch((e) => setError(String(e)));
   };
 
+  const [exportingBuildKey, setExportingBuildKey] = useState<string | null>(null);
+
+  const handleExportAnalysis = async (buildKey: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExportingBuildKey(buildKey);
+    setError(null);
+    try {
+      const report = await sessionApi.analysis(buildKey);
+      const blob = new Blob([JSON.stringify(report, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `rpm-analysis-${buildKey.replace(/:/g, "-")}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setExportingBuildKey(null);
+    }
+  };
+
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!window.confirm("Hapus sesi ini?")) return;
@@ -157,8 +181,18 @@ export const SessionsView: React.FC = () => {
           ) : (
             groupedByBuild.map(([buildKey, group]) => (
               <div key={buildKey} className="mb-4">
-                <div className="text-gray-500 text-[10px] uppercase tracking-wider mb-1 truncate">
-                  Build {buildKey}
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <div className="text-gray-500 text-[10px] uppercase tracking-wider truncate">
+                    Build {buildKey}
+                  </div>
+                  <button
+                    onClick={(e) => handleExportAnalysis(buildKey, e)}
+                    disabled={exportingBuildKey === buildKey}
+                    className="text-[10px] text-blue-400 hover:text-blue-300 disabled:opacity-50 shrink-0"
+                    title="Export analisis RPM (JSON) untuk build ini"
+                  >
+                    {exportingBuildKey === buildKey ? "..." : "⬇ Export"}
+                  </button>
                 </div>
                 <ul className="space-y-1">
                   {group.map((session) => (

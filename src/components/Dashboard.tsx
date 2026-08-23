@@ -4,6 +4,7 @@ import { CarNameplate } from "./CarNameplate";
 import { Gauge } from "./Gauge";
 import { ValueDisplay } from "./ValueDisplay";
 import { TunePanel } from "./TunePanel";
+import { ShiftLightBar } from "./ShiftLightBar";
 import { highlightPercentageValue } from "../utils/helper";
 
 export const Dashboard: React.FC = () => {
@@ -33,6 +34,10 @@ export const Dashboard: React.FC = () => {
           carName={data.carName}
           activeTuneName={data.activeTune?.name}
         />
+
+        {/* Shift light bar - deterministic %-of-maxRpm thresholds (SimHub
+            style), not a learned/predictive shift recommendation. */}
+        <ShiftLightBar rpm={data.rpm} maxRpm={data.rpmMax} percents={data.shiftLightPercents} />
 
         {/* Main Content */}
         <div className="flex justify-between items-center p-2 gap-8 bg-gradient-to-b from-gray-900 to-black">

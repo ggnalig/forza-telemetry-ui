@@ -1,4 +1,4 @@
-import type { SessionSummary, SessionFrame } from "../types";
+import type { SessionSummary, SessionFrame, RpmAnalysisReport } from "../types";
 
 const BASE_URL = "http://localhost:3003";
 
@@ -30,4 +30,9 @@ export const sessionApi = {
 
   remove: (id: string) =>
     request<{ success: boolean }>(`/sessions/${id}`, { method: "DELETE" }),
+
+  analysis: (buildKey: string) =>
+    request<{ report: RpmAnalysisReport }>(
+      `/analysis?buildKey=${encodeURIComponent(buildKey)}`,
+    ).then((r) => r.report),
 };

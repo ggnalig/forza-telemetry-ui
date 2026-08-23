@@ -1,8 +1,18 @@
+export interface ShiftLightPercents {
+  light1: number;
+  light2: number;
+  redline: number;
+}
+
 export interface GearboxTune {
   id: string;
   carOrdinal: number;
   name: string;
   gearRatios: Record<number, number>;
+  maxRpmOverride?: number;
+  maxRpmPerGearOverride?: Record<number, number>;
+  redlineOverride?: number;
+  shiftLightPercents?: ShiftLightPercents;
   createdAt: string;
   updatedAt: string;
 }
@@ -198,6 +208,11 @@ export interface TelemetryResponse {
     // stat for cross-checking engine.maxRpm against the actual
     // empirically-observed rev limiter.
     observedRpmCeiling: number;
+    // What the gauge should actually use - engine.maxRpm/itself unless the
+    // active tune overrides them.
+    effectiveMaxRpm: number;
+    effectiveRedline: number;
+    shiftLightPercents: ShiftLightPercents;
   };
 }
 
@@ -224,4 +239,17 @@ export interface TelemetryData extends TelemetryFrame {
   // Highest rpm ever observed at WOT for this car build - see
   // TelemetryResponse.diagnostics.observedRpmCeiling.
   observedRpmCeiling: number;
+  shiftLightPercents: ShiftLightPercents;
+}
+
+export interface RpmAnalysisReport {
+  buildKey: string;
+  carOrdinal: number;
+  sessionCount: number;
+  totalFramesAnalyzed: number;
+  wotFrameCount: number;
+  observedMaxRpmOverall: number;
+  observedMaxRpmPerGear: Record<number, number>;
+  suggestedShiftLightRpm: Record<string, number>;
+  generatedAt: string;
 }
