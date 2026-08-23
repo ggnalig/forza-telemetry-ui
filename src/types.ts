@@ -161,43 +161,13 @@ export interface TelemetryResponse {
     displayName: string;
   } | null;
   // The manually-entered gear-ratio tune active for this car, if any (see
-  // the Tune API on port 3002) - null means gear ratios come from the
-  // backend's statistical estimate instead.
+  // the Tune API on port 3002) - null means no tune has been selected.
   activeTune: GearboxTune | null;
-  // Single source of truth for whether the "smart" gauge features (dynamic
-  // redline, shift recommendation, shift lights) should be shown at all -
-  // set server-side from the SHOW_RECOMMENDATION env var. When false, the
-  // dashboard falls back to raw telemetry only (redline = maxRpm, no
-  // recommendation/lights), since the model's predictions are still a work
-  // in progress.
-  showRecommendation: boolean;
-  efficiency: {
-    map: {
-      [gear: number]: {
-        rpmMin: number;
-        rpmMax: number;
-        rpmAvg: number;
-        rpmOptimal: number;
-        // Descriptive p10-p90 observed spread, NOT a decision boundary -
-        // the real shift point is `finalShiftRPM` below. Named to match the
-        // API (renamed from `shiftWindow` in the 2026-08-22 audit).
-        observedRpmRange: [number, number];
-      };
-    };
-    recommendations: {
-      upshiftRecommended: boolean;
-      downshiftRecommended: boolean;
-    };
-    // 10-position F1-style light bar, rendered literally position-by-position
-    // (see ShiftLights.tsx) - not a rolling history, don't aggregate this
-    // into a single "active count" / "blinking" flag.
-    lights: string[];
-    currentRpm: number;
-    finalShiftRPM: number;
-    // Highest rpm ever observed at WOT for this car build - a diagnostic
-    // for cross-checking engine.maxRpm against the actual empirically-
-    // observed rev limiter (not yet surfaced in the UI).
-    observedRpmCeiling?: number;
+  diagnostics: {
+    // Highest rpm ever observed at WOT for this car build - a passive info
+    // stat for cross-checking engine.maxRpm against the actual
+    // empirically-observed rev limiter.
+    observedRpmCeiling: number;
   };
 }
 
@@ -215,22 +185,13 @@ export interface TelemetryFrame {
   lap: number;
 }
 
-export interface ShiftRecommendation {
-  upShift: boolean;
-  downShift: boolean;
-  recommendation: "WAIT" | "UP" | "DOWN";
-}
-
 export interface TelemetryData extends TelemetryFrame {
   rpmMax: number;
   redLine: number;
-  showRecommendation: boolean;
   carName: string | null;
   carOrdinal: number | null;
   activeTune: GearboxTune | null;
-  shiftRecommendation: ShiftRecommendation;
-  // Raw 10-position light bar straight from the API, rendered literally by
-  // ShiftLights.tsx - see that component for why this isn't reduced to an
-  // active-count/color/blink summary.
-  shiftLights: string[];
+  // Highest rpm ever observed at WOT for this car build - see
+  // TelemetryResponse.diagnostics.observedRpmCeiling.
+  observedRpmCeiling: number;
 }

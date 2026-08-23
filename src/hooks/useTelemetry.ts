@@ -6,8 +6,6 @@ import { handleGear } from "../utils/helper";
 // running (e.g. `npm run dev` with no forza-telemetry backend up).
 const MOCK_DATA = false;
 
-const OFF_LIGHTS = new Array(10).fill("⚫");
-
 const initialData: TelemetryData = {
   gear: handleGear(0),
   rpm: 0,
@@ -22,16 +20,10 @@ const initialData: TelemetryData = {
   lap: 0,
   redLine: 0,
   rpmMax: 8000,
-  showRecommendation: false,
   carName: null,
   carOrdinal: null,
   activeTune: null,
-  shiftRecommendation: {
-    upShift: false,
-    downShift: false,
-    recommendation: "WAIT",
-  },
-  shiftLights: OFF_LIGHTS,
+  observedRpmCeiling: 0,
 };
 
 export const useTelemetry = (url: string = "ws://localhost:3001") => {
@@ -69,25 +61,13 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
             if (!payload || !payload.parsed) return;
 
             const { engine, performance, input, lap, car } = payload.parsed;
-            const { efficiency, carInfo, showRecommendation, activeTune } = payload;
+            const { diagnostics, carInfo, activeTune } = payload;
 
             const currentGear = input?.gear ?? 0;
 
-            // Deliberately NOT using efficiency.finalShiftRPM here: that's
-            // the model's current *recommended shift point*, which is a
-            // volatile, still-converging estimate early in a session (it can
-            // sit far below the engine's actual redline while the model
-            // hasn't yet observed the power curve's peak). The gauge's
-            // redline is meant to be a stable "how close to the engine's
-            // real max rpm" marker, a different concept from "when should I
-            // shift" - so it's derived straight from maxRpm instead.
-            //
-            // Deliberately NOT gated by showRecommendation either: that flag
-            // only controls the still-learning predictive UI (shift
-            // recommendation, shift lights), not this gauge. Forza's own
-            // EngineMaxRpm field is documented by the community as literally
-            // "the redline rpm of the car", so redLine always reads it as-is
-            // regardless of the flag's state.
+            // Forza's own EngineMaxRpm field is documented by the community as
+            // literally "the redline rpm of the car" - the gauge's redline
+            // reads it as-is, no margin/adjustment applied.
             const redLine = engine.maxRpm;
 
             const transformedData: TelemetryData = {
@@ -114,24 +94,10 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
               // separately via `Math.floor(rpmMax / tickStep)`).
               rpmMax: engine?.maxRpm ?? 0,
               redLine,
-              showRecommendation: showRecommendation ?? false,
               carName: carInfo?.displayName ?? null,
               carOrdinal: car?.ordinal ?? null,
               activeTune: activeTune ?? null,
-              shiftRecommendation: {
-                upShift:
-                  efficiency?.recommendations?.upshiftRecommended ?? false,
-                downShift:
-                  efficiency?.recommendations?.downshiftRecommended ?? false,
-                recommendation: efficiency?.recommendations?.upshiftRecommended
-                  ? "UP"
-                  : efficiency?.recommendations?.downshiftRecommended
-                    ? "DOWN"
-                    : "WAIT",
-              },
-              // Passed straight through - see ShiftLights.tsx for why this
-              // isn't reduced to an active-count/color/blink summary here.
-              shiftLights: efficiency?.lights ?? OFF_LIGHTS,
+              observedRpmCeiling: diagnostics?.observedRpmCeiling ?? 0,
             };
 
             setData(transformedData);
@@ -148,10 +114,8 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
       connectTimer = window.setTimeout(() => setConnected(true), 0);
 
       let t = 0;
-      let blinkTick = 0;
       mockInterval = window.setInterval(() => {
         t += 0.05;
-        blinkTick += 1;
         const maxRpm = 12000; // Adjusted to 12000, scalable up to 6 digits
         const idleRpm = 800;
 
@@ -162,39 +126,6 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
         const speedRatio = rpm / maxRpm;
         const speed = Math.max(0, speedRatio * 350); // Scale speed up to 350 km/h
         const gear = Math.max(1, Math.min(6, Math.ceil(speedRatio * 6))); // 1 to 6 gears
-
-        const range = maxRpm - idleRpm;
-        const dynamicOffset = Math.min(
-          maxRpm * 0.1,
-          Math.max(200, range * 0.05),
-        );
-        const redLine = maxRpm - dynamicOffset;
-
-        // Mirrors the API's shift-light shape (fill bar -> uniform blink)
-        // closely enough for a local preview, using redLine as the mock
-        // "optimal shift point" since there's no learned finalShiftRPM here.
-        const optimalStart = redLine;
-        const optimalEnd = optimalStart + maxRpm * 0.04;
-        const approachStart = optimalStart - maxRpm * 0.15;
-        const blinkOn = blinkTick % 6 < 3;
-
-        let shiftLights: string[];
-        if (rpm > optimalEnd) {
-          shiftLights = new Array(10).fill(blinkOn ? "🔴" : "⚫");
-        } else if (rpm >= optimalStart) {
-          shiftLights = new Array(10).fill(blinkOn ? "🟠" : "⚫");
-        } else if (rpm < approachStart) {
-          shiftLights = OFF_LIGHTS;
-        } else {
-          const progress = Math.max(
-            0,
-            Math.min(1, (rpm - approachStart) / (optimalStart - approachStart)),
-          );
-          const litCount = Math.round(progress * 10);
-          shiftLights = Array.from({ length: 10 }, (_, i) =>
-            i >= litCount ? "⚫" : i < 5 ? "🟢" : "🟡",
-          );
-        }
 
         setData((prev) => ({
           ...prev,
@@ -208,12 +139,11 @@ export const useTelemetry = (url: string = "ws://localhost:3001") => {
           fuel: Number((50 + Math.cos((t * Math.PI) / 100) * 50).toFixed(1)),
           torque: speedRatio * 700,
           rpmMax: maxRpm,
-          redLine,
-          showRecommendation: true,
+          redLine: maxRpm,
           carName: "1992 Nissan Skyline GT-R",
           carOrdinal: 4114,
           activeTune: null,
-          shiftLights,
+          observedRpmCeiling: Math.max(prev.observedRpmCeiling, rpm),
         }));
       }, 16); // ~60Hz
     }
