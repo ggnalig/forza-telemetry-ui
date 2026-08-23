@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Dashboard } from './components/Dashboard'
 import { SessionsView } from './components/SessionsView'
 import { CarSettingsView } from './components/CarSettingsView'
+import { MobileTachometer } from './components/MobileTachometer'
 
 type Section = 'home' | 'carSettings' | 'sessions'
 
@@ -13,6 +14,17 @@ const NAV_ITEMS: { id: Section; label: string; icon: string }[] = [
 
 function App() {
   const [section, setSection] = useState<Section>('home')
+
+  // A standalone, chrome-free tachometer page for a phone mount - reachable
+  // directly at /mobile (bookmarkable, no sidebar flash first). Plain
+  // pathname check, not a router: this is the only route besides the
+  // sidebar's 3 sections, so a full router dependency isn't warranted
+  // (matches this codebase's existing zero-router convention). Requires the
+  // dev/production server to fall back to index.html for unknown paths -
+  // Vite's dev server already does this by default.
+  if (window.location.pathname === '/mobile') {
+    return <MobileTachometer />
+  }
 
   return (
     <div className="min-h-screen bg-black flex">

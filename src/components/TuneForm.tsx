@@ -15,10 +15,10 @@ interface RatioRow {
   ratio: string;
 }
 
-interface GearRpmRow {
-  gear: string;
-  maxRpm: number;
-}
+// Row position IS the gear number - no manual gear-number input. Row 0 is
+// the combined "N/R" bucket (see processor.ts's `perGearKey` - Neutral and
+// the -1 Reverse sentinel share this one entry), row i>=1 is forward gear i.
+const gearRpmLabel = (index: number) => (index === 0 ? "N/R" : String(index));
 
 const RPM_SLIDER_MIN = 0;
 const RPM_SLIDER_MAX = 20000;
@@ -63,13 +63,16 @@ export const TuneForm: React.FC<TuneFormProps> = ({
   );
 
   const [perGearOn, setPerGearOn] = useState(Boolean(initial?.maxRpmPerGearOverride));
-  const [gearRpmRows, setGearRpmRows] = useState<GearRpmRow[]>(
+  // Indexed by position: gearRpmRows[0] is the N/R bucket, gearRpmRows[i] is
+  // forward gear i. Existing data is sorted by its old (possibly
+  // user-typed, possibly sparse) gear-number keys and laid out positionally
+  // from there - any gaps are compacted away once resaved through this UI.
+  const [gearRpmRows, setGearRpmRows] = useState<number[]>(
     initial?.maxRpmPerGearOverride
-      ? Object.entries(initial.maxRpmPerGearOverride).map(([gear, maxRpm]) => ({
-          gear,
-          maxRpm,
-        }))
-      : [{ gear: "1", maxRpm: 9000 }],
+      ? Object.entries(initial.maxRpmPerGearOverride)
+          .sort(([a], [b]) => Number(a) - Number(b))
+          .map(([, maxRpm]) => maxRpm)
+      : [9000],
   );
 
   const [saving, setSaving] = useState(false);
@@ -86,14 +89,11 @@ export const TuneForm: React.FC<TuneFormProps> = ({
     setRows(rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   };
 
-  const addGearRpmRow = () => setGearRpmRows([...gearRpmRows, { gear: "1", maxRpm: 9000 }]);
+  const addGearRpmRow = () => setGearRpmRows([...gearRpmRows, 9000]);
   const removeGearRpmRow = (index: number) =>
     setGearRpmRows(gearRpmRows.filter((_, i) => i !== index));
-  const updateGearRpmGear = (index: number, gear: string) => {
-    setGearRpmRows(gearRpmRows.map((row, i) => (i === index ? { ...row, gear } : row)));
-  };
   const updateGearRpmValue = (index: number, maxRpm: number) => {
-    setGearRpmRows(gearRpmRows.map((row, i) => (i === index ? { ...row, maxRpm } : row)));
+    setGearRpmRows(gearRpmRows.map((v, i) => (i === index ? maxRpm : v)));
   };
 
   const handleSave = async () => {
@@ -121,14 +121,9 @@ export const TuneForm: React.FC<TuneFormProps> = ({
     let maxRpmPerGearOverride: Record<number, number> | undefined;
     if (perGearOn) {
       maxRpmPerGearOverride = {};
-      for (const row of gearRpmRows) {
-        const gear = Number(row.gear);
-        if (!gear || Number.isNaN(gear)) {
-          setError("Gigi pada override per-gigi harus diisi angka yang valid");
-          return;
-        }
-        maxRpmPerGearOverride[gear] = row.maxRpm;
-      }
+      gearRpmRows.forEach((maxRpm, gear) => {
+        maxRpmPerGearOverride![gear] = maxRpm;
+      });
     }
 
     const shiftLightPercents = shiftLightOn
@@ -307,19 +302,12 @@ export const TuneForm: React.FC<TuneFormProps> = ({
         </label>
         {perGearOn && (
           <div className="space-y-3 pl-1">
-            {gearRpmRows.map((row, i) => (
+            {gearRpmRows.map((maxRpm, i) => (
               <div key={i} className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={row.gear}
-                  onChange={(e) => updateGearRpmGear(i, e.target.value)}
-                  placeholder="Gigi"
-                  className="w-16 shrink-0 bg-gray-900 border border-gray-800 rounded px-2 py-1 text-white text-sm outline-none focus:border-blue-600"
-                />
                 <div className="flex-1">
                   <SliderInput
-                    label={`Gigi ${row.gear || "?"}`}
-                    value={row.maxRpm}
+                    label={`Gigi ${gearRpmLabel(i)}`}
+                    value={maxRpm}
                     min={RPM_SLIDER_MIN}
                     max={RPM_SLIDER_MAX}
                     step={RPM_SLIDER_STEP}
@@ -337,7 +325,7 @@ export const TuneForm: React.FC<TuneFormProps> = ({
               </div>
             ))}
             <button onClick={addGearRpmRow} className="text-sm text-blue-400">
-              + Tambah override gigi
+              + Tambah gigi ({gearRpmLabel(gearRpmRows.length)})
             </button>
           </div>
         )}

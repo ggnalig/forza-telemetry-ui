@@ -167,6 +167,20 @@ const PerCarOverridesTab: React.FC = () => {
     }
   };
 
+  // Pure client-side export - the full tune object (ratios + every
+  // override) is already in front-end state, unlike session analysis
+  // (which needs the backend to aggregate recorded frames).
+  const handleExportTune = (tune: TuneWithCarInfo) => {
+    const { carInfo, ...tuneData } = tune;
+    const blob = new Blob([JSON.stringify(tuneData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `tune-${tune.name.replace(/[^a-z0-9]+/gi, "-")}-${tune.carOrdinal}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleDelete = async (tune: TuneWithCarInfo) => {
     if (!window.confirm(`Hapus tune "${tune.name}"?`)) return;
     setError(null);
@@ -276,6 +290,13 @@ const PerCarOverridesTab: React.FC = () => {
                 className="text-xs px-3 py-1.5 rounded bg-red-900 text-red-200 font-bold"
               >
                 Hapus Tune
+              </button>
+              <button
+                onClick={() => handleExportTune(selectedTune)}
+                className="text-xs px-3 py-1.5 rounded bg-gray-700 text-gray-300 font-bold ml-auto"
+                title="Export settingan tune ini (JSON) untuk kebutuhan analisa"
+              >
+                ⬇ Export Tune
               </button>
             </div>
             <TuneForm
