@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { TuneWithCarInfo } from "../types";
 import { tuneApi } from "../services/tuneApi";
+import { useTelemetry } from "../hooks/useTelemetry";
 import { TuneForm } from "./TuneForm";
 import { SliderInput } from "./SliderInput";
 
@@ -112,6 +113,11 @@ const GeneralSettingsTab: React.FC = () => {
 };
 
 const PerCarOverridesTab: React.FC = () => {
+  // The game's own raw engine.maxRpm for whichever car is currently live -
+  // used to seed a new override's default value instead of a hardcoded
+  // guess (see TuneForm's engineMaxRpmHint prop). Only meaningful when it
+  // actually matches the car being edited below.
+  const { data: liveTelemetry } = useTelemetry();
   const [tunes, setTunes] = useState<TuneWithCarInfo[]>([]);
   const [activeByCarOrdinal, setActiveByCarOrdinal] = useState<Record<number, string | null>>({});
   const [loading, setLoading] = useState(true);
@@ -201,6 +207,14 @@ const PerCarOverridesTab: React.FC = () => {
     setNewCarOrdinalInput("");
   };
 
+  // Only trustworthy when the game is currently live on this exact car -
+  // otherwise there's no real baseline to offer, and TuneForm falls back
+  // to 0 (explicit "unknown, go check Rev Ceiling") rather than a guess.
+  const engineMaxRpmHintFor = (carOrdinal: number): number | undefined =>
+    liveTelemetry.carOrdinal === carOrdinal && liveTelemetry.engineMaxRpm > 0
+      ? liveTelemetry.engineMaxRpm
+      : undefined;
+
   return (
     <div className="flex gap-4 h-[calc(100vh-140px)]">
       {/* Tree: Car (ordinal + name) -> Tune (name) */}
@@ -266,6 +280,7 @@ const PerCarOverridesTab: React.FC = () => {
           <TuneForm
             carOrdinal={creatingForCarOrdinal}
             initial={null}
+            engineMaxRpmHint={engineMaxRpmHintFor(creatingForCarOrdinal)}
             onSaved={() => {
               setCreatingForCarOrdinal(null);
               refresh();
@@ -303,6 +318,7 @@ const PerCarOverridesTab: React.FC = () => {
               key={selectedTune.id}
               carOrdinal={selectedTune.carOrdinal}
               initial={selectedTune}
+              engineMaxRpmHint={engineMaxRpmHintFor(selectedTune.carOrdinal)}
               onSaved={refresh}
               onCancel={() => setSelectedTuneId(null)}
             />

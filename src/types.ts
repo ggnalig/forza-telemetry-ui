@@ -249,6 +249,12 @@ export interface TelemetryFrame {
 export interface TelemetryData extends TelemetryFrame {
   rpmMax: number;
   redLine: number;
+  // The game's own raw reported engine.maxRpm, BEFORE any tune override is
+  // applied - unlike rpmMax/redLine (which are the effective, possibly
+  // overridden values the gauge actually renders). Used as the real
+  // per-car baseline when seeding a new override's default value, instead
+  // of a hardcoded guess that's wrong for every car but one.
+  engineMaxRpm: number;
   carName: string | null;
   carOrdinal: number | null;
   activeTune: GearboxTune | null;

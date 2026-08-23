@@ -6,6 +6,13 @@ import { SliderInput } from "./SliderInput";
 interface TuneFormProps {
   carOrdinal: number;
   initial: GearboxTune | null;
+  // The game's own raw engine.maxRpm for this car, when known (only
+  // available while the game is currently live on this exact car) - used
+  // to seed new override sliders with THIS car's real baseline instead of
+  // a hardcoded number that's wrong for every car but one. undefined means
+  // no baseline is known; sliders fall back to 0 in that case, an explicit
+  // "you need to set this yourself" rather than another guess.
+  engineMaxRpmHint?: number;
   onSaved: () => void;
   onCancel: () => void;
 }
@@ -29,9 +36,14 @@ const PERCENT_SLIDER_MAX = 100;
 export const TuneForm: React.FC<TuneFormProps> = ({
   carOrdinal,
   initial,
+  engineMaxRpmHint,
   onSaved,
   onCancel,
 }) => {
+  // A new override's slider seeds from THIS car's own known baseline, not
+  // a fixed guess - see engineMaxRpmHint's doc comment above.
+  const defaultRpm = engineMaxRpmHint ?? 0;
+
   const [name, setName] = useState(initial?.name ?? "");
   const [rows, setRows] = useState<RatioRow[]>(
     initial
@@ -46,10 +58,10 @@ export const TuneForm: React.FC<TuneFormProps> = ({
   // toggle) rather than "empty string means off" - clearer intent, and the
   // slider always has a real number to show even before being enabled.
   const [maxRpmOverrideOn, setMaxRpmOverrideOn] = useState(initial?.maxRpmOverride !== undefined);
-  const [maxRpmOverride, setMaxRpmOverride] = useState(initial?.maxRpmOverride ?? 9000);
+  const [maxRpmOverride, setMaxRpmOverride] = useState(initial?.maxRpmOverride ?? defaultRpm);
 
   const [redlineOverrideOn, setRedlineOverrideOn] = useState(initial?.redlineOverride !== undefined);
-  const [redlineOverride, setRedlineOverride] = useState(initial?.redlineOverride ?? 9000);
+  const [redlineOverride, setRedlineOverride] = useState(initial?.redlineOverride ?? defaultRpm);
 
   const [shiftLightOn, setShiftLightOn] = useState(Boolean(initial?.shiftLightPercents));
   const [light1Percent, setLight1Percent] = useState(
@@ -72,7 +84,7 @@ export const TuneForm: React.FC<TuneFormProps> = ({
       ? Object.entries(initial.maxRpmPerGearOverride)
           .sort(([a], [b]) => Number(a) - Number(b))
           .map(([, maxRpm]) => maxRpm)
-      : [9000],
+      : [defaultRpm],
   );
 
   const [saving, setSaving] = useState(false);
@@ -89,7 +101,7 @@ export const TuneForm: React.FC<TuneFormProps> = ({
     setRows(rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   };
 
-  const addGearRpmRow = () => setGearRpmRows([...gearRpmRows, 9000]);
+  const addGearRpmRow = () => setGearRpmRows([...gearRpmRows, defaultRpm]);
   const removeGearRpmRow = (index: number) =>
     setGearRpmRows(gearRpmRows.filter((_, i) => i !== index));
   const updateGearRpmValue = (index: number, maxRpm: number) => {
@@ -214,6 +226,15 @@ export const TuneForm: React.FC<TuneFormProps> = ({
           Override RPM manual - buat mengoreksi max RPM/redline kalau data dari
           game meleset. Lihat <span className="text-gray-400">Rev Ceiling</span>{" "}
           di Home atau export analisis sesi buat acuan angkanya.
+          {engineMaxRpmHint ? (
+            <>
+              {" "}
+              Baseline dari game buat mobil ini sekarang:{" "}
+              <span className="text-gray-300 font-semibold">{engineMaxRpmHint} RPM</span>.
+            </>
+          ) : (
+            " Mobil ini lagi gak aktif di game, jadi slider di bawah mulai dari 0 - isi manual."
+          )}
         </p>
 
         <label className="flex items-center gap-2 text-sm text-gray-300">

@@ -22,6 +22,7 @@ const initialData: TelemetryData = {
   lap: 0,
   redLine: 0,
   rpmMax: 8000,
+  engineMaxRpm: 0,
   carName: null,
   carOrdinal: null,
   activeTune: null,
@@ -104,6 +105,9 @@ export const useTelemetry = (url: string = DEFAULT_WS_URL) => {
               // computeEffectiveRpm there.
               rpmMax: diagnostics?.effectiveMaxRpm ?? engine?.maxRpm ?? 0,
               redLine: diagnostics?.effectiveRedline ?? engine?.maxRpm ?? 0,
+              // The raw, un-overridden value - see TelemetryData's doc
+              // comment for why this is kept separate from rpmMax above.
+              engineMaxRpm: engine?.maxRpm ?? 0,
               carName: carInfo?.displayName ?? null,
               carOrdinal: car?.ordinal ?? null,
               activeTune: activeTune ?? null,
@@ -151,6 +155,7 @@ export const useTelemetry = (url: string = DEFAULT_WS_URL) => {
           torque: speedRatio * 700,
           rpmMax: maxRpm,
           redLine: maxRpm,
+          engineMaxRpm: maxRpm,
           carName: "1992 Nissan Skyline GT-R",
           carOrdinal: 4114,
           activeTune: null,
