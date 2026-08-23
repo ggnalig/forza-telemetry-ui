@@ -29,7 +29,14 @@ const initialData: TelemetryData = {
   shiftLightPercents: DEFAULT_SHIFT_LIGHT_PERCENTS,
 };
 
-export const useTelemetry = (url: string = "ws://localhost:3001") => {
+// Deliberately NOT a hardcoded "localhost" default: when this page is opened
+// from a phone via the PC's LAN IP (see vite.config.ts's server.host), the
+// phone's own "localhost" means the phone itself, not the PC running the
+// API - window.location.hostname is whatever host the page was actually
+// loaded from, which is correct in both cases (dev machine or LAN client).
+const DEFAULT_WS_URL = `ws://${window.location.hostname}:3001`;
+
+export const useTelemetry = (url: string = DEFAULT_WS_URL) => {
   const [data, setData] = useState<TelemetryData>(initialData);
   const [connected, setConnected] = useState(false);
 

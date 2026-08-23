@@ -1,6 +1,7 @@
 import type { SessionSummary, SessionFrame, RpmAnalysisReport, RecordingStatus } from "../types";
 
-const BASE_URL = "http://localhost:3003";
+// Not hardcoded "localhost" - see useTelemetry.ts's DEFAULT_WS_URL comment.
+const BASE_URL = `http://${window.location.hostname}:3003`;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {

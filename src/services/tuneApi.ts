@@ -1,6 +1,9 @@
 import type { GearboxTune, ShiftLightPercents } from "../types";
 
-const BASE_URL = "http://localhost:3002";
+// Not hardcoded "localhost" - see useTelemetry.ts's DEFAULT_WS_URL comment
+// for why (a phone opening this page via the PC's LAN IP needs that same
+// host here too, not its own localhost).
+const BASE_URL = `http://${window.location.hostname}:3002`;
 
 interface GearboxTuneOverrides {
   maxRpmOverride?: number;
